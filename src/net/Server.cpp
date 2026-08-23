@@ -16,6 +16,8 @@ Server::Server(QObject *parent)
     connect(&m_server, &QTcpServer::newConnection, this, &Server::onNewConnection);
     connect(&m_announceTimer, &QTimer::timeout, this, &Server::announce);
     m_announceTimer.setInterval(2000);
+    connect(&m_gameTimer, &QTimer::timeout, this, &Server::tickGame);
+    m_gameTimer.setInterval(16);
 }
 
 Server::~Server()
@@ -31,6 +33,7 @@ bool Server::listen(quint16 port)
         return false;
     }
     emit logLine(QStringLiteral("Server listening on port %1").arg(m_server.serverPort()));
+    addBots();
     if (m_announce.state() != QAbstractSocket::BoundState)
         m_announce.bind(QHostAddress(QHostAddress::AnyIPv4), 0);
     m_announceTimer.start();
@@ -41,6 +44,7 @@ bool Server::listen(quint16 port)
 void Server::stop()
 {
     m_announceTimer.stop();
+    m_gameTimer.stop();
     for (auto &p : m_pending) {
         if (p.socket) {
             p.socket->disconnect(this);
@@ -57,6 +61,7 @@ void Server::stop()
     }
     m_server.close();
     m_playing = false;
+    m_botAcc = 0;
 }
 
 void Server::setServerName(const QString &name)
@@ -68,6 +73,11 @@ void Server::setServerName(const QString &name)
 void Server::setMaxPlayers(int maxPlayers)
 {
     m_maxPlayers = std::clamp(maxPlayers, 1, kMaxPlayers);
+}
+
+void Server::setBotCount(int botCount)
+{
+    m_botCount = std::clamp(botCount, 0, kMaxPlayers - 1);
 }
 
 bool Server::isListening() const
@@ -95,14 +105,27 @@ void Server::startGame()
         return;
     m_playing = true;
     const int seed = static_cast<int>(QRandomGenerator::global()->generate() & 0x7fffffff);
-    for (auto &c : m_clients) {
+    for (int i = 0; i < kMaxPlayers; ++i) {
+        auto &c = m_clients[static_cast<size_t>(i)];
         c.alive = c.used;
-        c.field.clear();
+        c.botAi.reset();
+        c.inputAction.clear();
+        c.inputTarget = -1;
+        if (c.used) {
+            c.engine = std::make_unique<Engine>();
+            c.engine->reset(static_cast<uint32_t>(seed) + static_cast<uint32_t>(i) * 7919u);
+            if (c.bot)
+                c.botAi = std::make_unique<Bot>(c.engine.get());
+        }
     }
     Message start;
     start.type = Message::Start;
     start.value = seed;
     broadcast(start);
+    for (int i = 0; i < kMaxPlayers; ++i)
+        if (m_clients[static_cast<size_t>(i)].used)
+            broadcastState(i);
+    m_gameTimer.start();
     emit logLine(QStringLiteral("Game started"));
 }
 
@@ -335,31 +358,10 @@ void Server::handle(int slot, const Message &msg)
         break;
     }
     case Message::Field:
-        if (m_playing && c.alive && Field::isValidEncoding(msg.data)) {
-            c.field = msg.data;
-            Message field = msg;
-            field.slot = slot;
-            broadcast(field, slot);
-        }
         break;
     case Message::Special:
-        if (m_playing && c.alive && msg.target >= 0 && msg.target < kMaxPlayers
-            && m_clients[static_cast<size_t>(msg.target)].alive && msg.text.size() == 1
-            && isSpecial(charToCell(msg.text[0].toLatin1()))) {
-            Message spec = msg;
-            spec.slot = slot;
-            broadcast(spec);
-        }
         break;
     case Message::Lose:
-        if (m_playing && c.alive) {
-            c.alive = false;
-            Message lose;
-            lose.type = Message::Lose;
-            lose.slot = slot;
-            broadcast(lose);
-            checkWin();
-        }
         break;
     case Message::Start:
         // Only an embedded host may call startGame(); peer commands cannot start matches.
@@ -370,6 +372,14 @@ void Server::handle(int slot, const Message &msg)
         sendTo(slot, pong);
         break;
     }
+    case Message::Input:
+        if (!m_playing || !c.alive || !c.engine)
+            break;
+        if (c.inputAction.isEmpty()) {
+            c.inputAction = msg.text;
+            c.inputTarget = msg.target;
+        }
+        break;
     default:
         break;
     }
@@ -420,7 +430,162 @@ void Server::checkWin()
             broadcast(win);
         }
         m_playing = false;
+        m_gameTimer.stop();
     }
+}
+
+void Server::addBots()
+{
+    const int want = std::clamp(m_botCount, 0, std::max(0, m_maxPlayers - 1));
+    int have = 0;
+    for (const auto &c : m_clients) {
+        if (c.bot)
+            ++have;
+    }
+    while (have < want) {
+        const int slot = allocateSlot();
+        if (slot < 0)
+            break;
+        auto &c = m_clients[static_cast<size_t>(slot)];
+        c.used = true;
+        c.bot = true;
+        c.name = QStringLiteral("Bot %1").arg(++have);
+        Message joined;
+        joined.type = Message::Player;
+        joined.slot = slot;
+        joined.text = c.name;
+        broadcast(joined);
+        emit playerListChanged();
+        emit logLine(QStringLiteral("%1 joined slot %2").arg(c.name).arg(slot + 1));
+    }
+}
+
+QVector<int> Server::heights() const
+{
+    QVector<int> h(kMaxPlayers, -1);
+    for (int i = 0; i < kMaxPlayers; ++i) {
+        const auto &c = m_clients[static_cast<size_t>(i)];
+        if (c.used && c.alive && c.engine)
+            h[i] = c.engine->field().stackHeight();
+    }
+    return h;
+}
+
+void Server::tickBots()
+{
+    m_botAcc += m_gameTimer.interval();
+    if (m_botAcc < 90)
+        return;
+    m_botAcc = 0;
+    const QVector<int> stack = heights();
+    for (int i = 0; i < kMaxPlayers; ++i) {
+        auto &c = m_clients[static_cast<size_t>(i)];
+        if (!c.bot || !c.alive || !c.botAi || !c.engine)
+            continue;
+        c.botAi->thinkAndAct();
+        if (!c.engine->inventory().isEmpty() && QRandomGenerator::global()->bounded(100) < 18) {
+            const int target = c.botAi->chooseTarget(stack, i);
+            const Special s = c.engine->inventory().front();
+            const bool helpful = (s == Special::ClearLine || s == Special::Gravity
+                                  || s == Special::Nuke || s == Special::ClearSpecial);
+            applySpecial(i, helpful ? i : target);
+        }
+    }
+}
+
+void Server::tickGame()
+{
+    if (!m_playing)
+        return;
+    tickBots();
+    for (int i = 0; i < kMaxPlayers; ++i) {
+        auto &c = m_clients[static_cast<size_t>(i)];
+        if (!c.alive || !c.engine)
+            continue;
+        if (!c.inputAction.isEmpty()) {
+            applyInput(i, c.inputAction, c.inputTarget);
+            c.inputAction.clear();
+            c.inputTarget = -1;
+        }
+        c.engine->tick(m_gameTimer.interval());
+        if (!c.engine->alive()) {
+            c.alive = false;
+            Message lose;
+            lose.type = Message::Lose;
+            lose.slot = i;
+            broadcast(lose);
+            checkWin();
+        }
+        broadcastState(i);
+    }
+}
+
+void Server::applyInput(int slot, const QString &action, int target)
+{
+    auto &c = m_clients[static_cast<size_t>(slot)];
+    if (!c.engine)
+        return;
+    if (action == QLatin1String("left"))
+        c.engine->moveLeft();
+    else if (action == QLatin1String("right"))
+        c.engine->moveRight();
+    else if (action == QLatin1String("down"))
+        c.engine->softDrop();
+    else if (action == QLatin1String("drop"))
+        c.engine->hardDrop();
+    else if (action == QLatin1String("cw"))
+        c.engine->rotate(1);
+    else if (action == QLatin1String("ccw"))
+        c.engine->rotate(-1);
+    else if (action == QLatin1String("special") && target >= 0 && target < kMaxPlayers
+             && m_clients[static_cast<size_t>(target)].alive)
+        applySpecial(slot, target);
+}
+
+void Server::broadcastState(int slot)
+{
+    const auto &c = m_clients[static_cast<size_t>(slot)];
+    if (!c.used || !c.engine)
+        return;
+    Message state;
+    state.type = Message::State;
+    state.slot = slot;
+    state.value = c.alive ? 1 : 0;
+    state.level = c.engine->level();
+    state.score = c.engine->score();
+    state.lines = c.engine->lines();
+    for (Special special : c.engine->inventory())
+        state.text += QChar(specialLetter(special));
+    if (state.text.isEmpty())
+        state.text = QStringLiteral("-");
+    state.data = c.engine->snapshot(false).encode();
+    state.piece = encodeLivePieces(c.engine->hasPiece(), c.engine->current(), c.engine->next());
+    broadcast(state);
+}
+
+void Server::applySpecial(int from, int target)
+{
+    auto &source = m_clients[static_cast<size_t>(from)];
+    auto &destination = m_clients[static_cast<size_t>(target)];
+    if (!source.engine || !destination.engine || source.engine->inventory().isEmpty())
+        return;
+    const Special special = source.engine->takeSpecial();
+    if (special == Special::SwitchField && from != target) {
+        const Field sourceField = source.engine->field();
+        source.engine->setField(destination.engine->field());
+        destination.engine->setField(sourceField);
+    } else {
+        destination.engine->applySpecial(special);
+    }
+    Message event;
+    event.type = Message::Special;
+    event.slot = from;
+    event.target = target;
+    event.text = QString(QChar(specialLetter(special)));
+    broadcast(event);
+    broadcastState(from);
+    if (target != from)
+        broadcastState(target);
 }
 
 } // namespace tnet

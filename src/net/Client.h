@@ -22,7 +22,7 @@ public:
 
     void sendChat(const QString &text);
     void sendField(const QString &data);
-    void sendSpecial(int target, Special special);
+    void sendInput(const QString &action, int target = -1);
     void sendLose();
     void sendNick(const QString &nick);
 
@@ -42,6 +42,8 @@ signals:
     void specialReceived(int from, int target, Special special);
     void playerLost(int slot);
     void playerWon(int slot);
+    void stateReceived(int slot, bool alive, int level, int score, int lines,
+                       const QString &inventory, const QString &field, const QString &piece);
     void welcomed(int slot);
 
 private:

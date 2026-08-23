@@ -24,14 +24,20 @@ struct Message {
         Pong,
         Query,
         Status,
+        Input,
+        State,
         Unknown
     } type = Unknown;
 
     int slot = -1;
     int target = -1;
     int value = 0;
+    int level = 1;
+    int score = 0;
+    int lines = 0;
     QString text;
     QString data;
+    QString piece;
 };
 
 QByteArray encodeMessage(const Message &msg);

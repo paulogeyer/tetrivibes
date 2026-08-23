@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Protocol.h"
+#include "game/Bot.h"
+#include "game/Engine.h"
 #include "game/Types.h"
 
 #include <QObject>
@@ -10,6 +12,7 @@
 #include <QUdpSocket>
 #include <QVector>
 #include <array>
+#include <memory>
 
 namespace tnet {
 
@@ -28,6 +31,7 @@ public:
     int playerCount() const;
     void setServerName(const QString &name);
     void setMaxPlayers(int maxPlayers);
+    void setBotCount(int botCount);
     QString serverName() const { return m_name; }
     int maxPlayers() const { return m_maxPlayers; }
 
@@ -42,7 +46,11 @@ private:
         QString name;
         bool used = false;
         bool alive = false;
-        QString field;
+        bool bot = false;
+        std::unique_ptr<Engine> engine;
+        std::unique_ptr<Bot> botAi;
+        QString inputAction;
+        int inputTarget = -1;
     };
 
     struct Pending {
@@ -62,6 +70,13 @@ private:
     void sendPlayerList(int slot);
     void sendStatus(QTcpSocket *socket);
     void announce();
+    void addBots();
+    void tickBots();
+    void tickGame();
+    void applyInput(int slot, const QString &action, int target);
+    void broadcastState(int slot);
+    void applySpecial(int from, int target);
+    QVector<int> heights() const;
     bool promotePending(QTcpSocket *socket, const QString &nick);
     void processClient(QTcpSocket *socket);
     void checkWin();
@@ -72,10 +87,13 @@ private:
     QTcpServer m_server;
     QUdpSocket m_announce;
     QTimer m_announceTimer;
+    QTimer m_gameTimer;
     std::array<ClientSlot, kMaxPlayers> m_clients{};
     QVector<Pending> m_pending;
     QString m_name = QStringLiteral("Tetrinet");
     int m_maxPlayers = kMaxPlayers;
+    int m_botCount = 0;
+    int m_botAcc = 0;
     bool m_playing = false;
 };
 

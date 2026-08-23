@@ -252,6 +252,24 @@ void Engine::setField(const Field &field)
     emit updated();
 }
 
+void Engine::setRemoteState(const Field &field, bool alive, int level, int score, int lines,
+                            const QVector<Special> &inventory, bool hasPiece, const Piece &current,
+                            const Piece &next)
+{
+    m_field = field;
+    m_alive = alive;
+    m_started = true;
+    m_hasPiece = hasPiece;
+    m_current = current;
+    m_next = next;
+    m_level = std::max(1, level);
+    m_score = std::max(0, score);
+    m_lines = std::max(0, lines);
+    m_inventory = inventory;
+    emit inventoryChanged();
+    emit updated();
+}
+
 Special Engine::takeSpecial()
 {
     if (m_inventory.isEmpty())

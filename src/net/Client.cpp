@@ -74,12 +74,12 @@ void Client::sendField(const QString &data)
     send(m);
 }
 
-void Client::sendSpecial(int target, Special special)
+void Client::sendInput(const QString &action, int target)
 {
     Message m;
-    m.type = Message::Special;
+    m.type = Message::Input;
     m.target = target;
-    m.text = QString(QChar(specialLetter(special)));
+    m.text = action;
     send(m);
 }
 
@@ -159,6 +159,10 @@ void Client::handle(const Message &msg)
         break;
     case Message::Win:
         emit playerWon(msg.slot);
+        break;
+    case Message::State:
+        emit stateReceived(msg.slot, msg.value != 0, msg.level, msg.score, msg.lines, msg.text,
+                           msg.data, msg.piece);
         break;
     default:
         break;

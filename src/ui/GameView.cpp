@@ -248,10 +248,6 @@ void GameView::keyPressEvent(QKeyEvent *event)
         return;
     }
 
-    Engine *eng = m_session->localEngine();
-    if (!eng)
-        return;
-
     if (event->isAutoRepeat() && event->key() == Qt::Key_Space)
         return;
 
@@ -262,24 +258,24 @@ void GameView::keyPressEvent(QKeyEvent *event)
 
     switch (event->key()) {
     case Qt::Key_Left:
-        eng->moveLeft();
+        m_session->moveLeft();
         break;
     case Qt::Key_Right:
-        eng->moveRight();
+        m_session->moveRight();
         break;
     case Qt::Key_Down:
-        eng->softDrop();
+        m_session->softDrop();
         break;
     case Qt::Key_Up:
     case Qt::Key_X:
-        eng->rotate(1);
+        m_session->rotate(1);
         break;
     case Qt::Key_Z:
     case Qt::Key_Control:
-        eng->rotate(-1);
+        m_session->rotate(-1);
         break;
     case Qt::Key_Space:
-        eng->hardDrop();
+        m_session->hardDrop();
         break;
     case Qt::Key_Return:
     case Qt::Key_Enter:

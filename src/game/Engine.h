@@ -26,6 +26,9 @@ public:
 
     void applySpecial(Special special);
     void setField(const Field &field);
+    void setRemoteState(const Field &field, bool alive, int level, int score, int lines,
+                        const QVector<Special> &inventory, bool hasPiece, const Piece &current,
+                        const Piece &next);
     void setPieceDelay(int ms) { m_pieceDelay = ms; }
     void setStartLevel(int level) { m_startLevel = level < 1 ? 1 : level; }
     void setPaused(bool paused) { m_paused = paused; }

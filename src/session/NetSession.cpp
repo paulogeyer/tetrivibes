@@ -3,28 +3,40 @@
 #include <algorithm>
 
 namespace tnet {
+namespace {
+
+QVector<Special> decodeInventory(const QString &encoded)
+{
+    QVector<Special> inventory;
+    if (encoded == QLatin1String("-"))
+        return inventory;
+    for (const QChar ch : encoded) {
+        const Cell cell = charToCell(ch.toLatin1());
+        if (!isSpecial(cell))
+            return {};
+        inventory.push_back(cellToSpecial(cell));
+    }
+    return inventory;
+}
+
+} // namespace
 
 NetSession::NetSession(bool host, const QString &hostName, quint16 port, const QString &nick,
-                       const QString &serverName, int maxPlayers, QObject *parent)
+                       const QString &serverName, int maxPlayers, int botCount, QObject *parent)
     : GameSession(parent)
     , m_host(host)
     , m_nick(nick.isEmpty() ? QStringLiteral("Player") : nick)
     , m_serverName(serverName)
     , m_maxPlayers(maxPlayers)
+    , m_botCount(botCount)
 {
     m_pendingHost = hostName;
     m_pendingPort = port;
     connect(&m_engine, &Engine::updated, this, [this]() {
         emit updated();
-        if (m_playing)
-            broadcastField();
     });
     connect(&m_engine, &Engine::inventoryChanged, this, &GameSession::updated);
     connect(&m_engine, &Engine::died, this, [this]() {
-        if (m_playing) {
-            m_alive[static_cast<size_t>(std::max(0, m_client.localSlot()))] = false;
-            m_client.sendLose();
-        }
         emit updated();
     });
 
@@ -59,6 +71,7 @@ NetSession::NetSession(bool host, const QString &hostName, quint16 port, const Q
         emit updated();
     });
     connect(&m_client, &Client::specialReceived, this, &NetSession::onSpecial);
+    connect(&m_client, &Client::stateReceived, this, &NetSession::onState);
     connect(&m_client, &Client::playerLost, this, [this](int slot) {
         if (slot >= 0 && slot < kMaxPlayers)
             m_alive[static_cast<size_t>(slot)] = false;
@@ -79,6 +92,7 @@ void NetSession::begin()
         m_server = new Server(this);
         m_server->setServerName(m_serverName.isEmpty() ? m_nick : m_serverName);
         m_server->setMaxPlayers(m_maxPlayers);
+        m_server->setBotCount(m_botCount);
         connect(m_server, &Server::logLine, this, &GameSession::chatReceived);
         if (!m_server->listen(m_pendingPort))
             emit chatReceived(QStringLiteral("* Failed to start server"));
@@ -174,6 +188,7 @@ void NetSession::startGame()
 
 void NetSession::onGameStarted(int seed)
 {
+    Q_UNUSED(seed);
     m_playing = true;
     m_alive.fill(false);
     for (int i = 0; i < kMaxPlayers; ++i) {
@@ -181,8 +196,6 @@ void NetSession::onGameStarted(int seed)
         if (m_client.slotUsed(i))
             m_alive[static_cast<size_t>(i)] = true;
     }
-    m_engine.reset(static_cast<uint32_t>(seed) + static_cast<uint32_t>(localSlot()) * 7919u);
-    m_lastSent.clear();
     emit chatReceived(QStringLiteral("* Game started"));
     emit statusChanged();
     emit updated();
@@ -194,8 +207,7 @@ void NetSession::useSpecial(int targetSlot)
         return;
     if (!slotOccupied(targetSlot))
         return;
-    const Special s = m_engine.takeSpecial();
-    m_client.sendSpecial(targetSlot, s);
+    m_client.sendInput(QStringLiteral("special"), targetSlot);
 }
 
 void NetSession::onSpecial(int from, int target, Special special)
@@ -203,22 +215,6 @@ void NetSession::onSpecial(int from, int target, Special special)
     emit chatReceived(QStringLiteral("* %1 used %2 on %3")
                           .arg(playerName(from), specialName(special), playerName(target)));
 
-    if (special == Special::SwitchField) {
-        if (from == localSlot() && target == localSlot())
-            return;
-        if (target == localSlot() || from == localSlot()) {
-            const int other = (from == localSlot()) ? target : from;
-            Field mine = m_engine.field();
-            Field theirs = m_fields[static_cast<size_t>(other)];
-            m_engine.setField(theirs);
-            m_fields[static_cast<size_t>(other)] = mine;
-            broadcastField();
-        }
-        return;
-    }
-
-    if (target == localSlot())
-        m_engine.applySpecial(special);
 }
 
 void NetSession::sendChat(const QString &text)
@@ -226,26 +222,59 @@ void NetSession::sendChat(const QString &text)
     m_client.sendChat(text);
 }
 
-void NetSession::broadcastField()
+void NetSession::onState(int slot, bool alive, int level, int score, int lines,
+                         const QString &inventory, const QString &field, const QString &piece)
 {
-    const QString data = m_engine.snapshot(true).encode();
-    if (data == m_lastSent)
+    if (slot < 0 || slot >= kMaxPlayers || !Field::isValidEncoding(field))
         return;
-    m_lastSent = data;
-    m_client.sendField(data);
+    bool hasPiece = false;
+    Piece current;
+    Piece next;
+    if (!decodeLivePieces(piece, hasPiece, current, next))
+        return;
+    m_alive[static_cast<size_t>(slot)] = alive;
+    Field decoded = Field::decode(field);
+    if (slot == localSlot()) {
+        m_engine.setRemoteState(decoded, alive, level, score, lines, decodeInventory(inventory),
+                                hasPiece, current, next);
+    } else {
+        if (hasPiece)
+            decoded.lock(current);
+        m_fields[static_cast<size_t>(slot)] = decoded;
+    }
+    emit statusChanged();
+    emit updated();
 }
 
 void NetSession::tick(int ms)
 {
-    if (!m_playing || !m_engine.alive())
-        return;
-    m_engine.tick(ms);
-    m_fieldAcc += ms;
-    if (m_fieldAcc >= 200) {
-        m_fieldAcc = 0;
-        broadcastField();
-    }
+    Q_UNUSED(ms);
     emit statusChanged();
+}
+
+void NetSession::moveLeft()
+{
+    m_client.sendInput(QStringLiteral("left"));
+}
+
+void NetSession::moveRight()
+{
+    m_client.sendInput(QStringLiteral("right"));
+}
+
+void NetSession::rotate(int direction)
+{
+    m_client.sendInput(direction < 0 ? QStringLiteral("ccw") : QStringLiteral("cw"));
+}
+
+void NetSession::softDrop()
+{
+    m_client.sendInput(QStringLiteral("down"));
+}
+
+void NetSession::hardDrop()
+{
+    m_client.sendInput(QStringLiteral("drop"));
 }
 
 } // namespace tnet

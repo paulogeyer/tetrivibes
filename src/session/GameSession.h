@@ -43,6 +43,11 @@ public:
     virtual void useSpecial(int targetSlot) = 0;
     virtual void sendChat(const QString &text) = 0;
     virtual void tick(int ms) = 0;
+    virtual void moveLeft() { localEngine()->moveLeft(); }
+    virtual void moveRight() { localEngine()->moveRight(); }
+    virtual void rotate(int direction) { localEngine()->rotate(direction); }
+    virtual void softDrop() { localEngine()->softDrop(); }
+    virtual void hardDrop() { localEngine()->hardDrop(); }
 
 signals:
     void updated();

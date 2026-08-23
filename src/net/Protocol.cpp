@@ -78,6 +78,20 @@ QByteArray encodeMessage(const Message &msg)
                    .arg(msg.value)
                    .arg(lineText(msg.text));
         break;
+    case Message::Input:
+        line = QStringLiteral("INPUT %1 %2").arg(msg.text).arg(msg.target);
+        break;
+    case Message::State:
+        line = QStringLiteral("STATE %1 %2 %3 %4 %5 %6 %7 %8")
+                   .arg(msg.slot)
+                   .arg(msg.value)
+                   .arg(msg.level)
+                   .arg(msg.score)
+                   .arg(msg.lines)
+                   .arg(lineText(msg.text))
+                   .arg(lineText(msg.data))
+                   .arg(lineText(msg.piece));
+        break;
     default:
         return {};
     }
@@ -184,6 +198,24 @@ bool decodeMessage(const QByteArray &raw, Message &msg)
             return false;
         msg.type = Message::Status;
         msg.text = restFrom(4);
+        return true;
+    }
+    if (cmd == QLatin1String("INPUT") && parts.size() == 3) {
+        if (!parseInt(parts[2], msg.target))
+            return false;
+        msg.type = Message::Input;
+        msg.text = parts[1];
+        return true;
+    }
+    if (cmd == QLatin1String("STATE") && parts.size() == 9) {
+        if (!parseInt(parts[1], msg.slot) || !parseInt(parts[2], msg.value)
+            || !parseInt(parts[3], msg.level) || !parseInt(parts[4], msg.score)
+            || !parseInt(parts[5], msg.lines))
+            return false;
+        msg.type = Message::State;
+        msg.text = parts[6];
+        msg.data = parts[7];
+        msg.piece = parts[8];
         return true;
     }
     msg.type = Message::Unknown;

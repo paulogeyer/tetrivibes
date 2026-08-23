@@ -97,7 +97,8 @@ void MainWindow::attachSession(GameSession *session)
 void MainWindow::hostGame()
 {
     attachSession(new NetSession(true, m_lobby->host(), m_lobby->port(), m_lobby->nickname(),
-                                m_lobby->serverName(), m_lobby->maxPlayers(), this));
+                                m_lobby->serverName(), m_lobby->maxPlayers(), m_lobby->botCount(),
+                                this));
 }
 
 void MainWindow::joinGame()
@@ -110,7 +111,7 @@ void MainWindow::joinGame()
     const QString label = m_lobby->selectedServerName();
     if (proto == JoinProtocol::Native) {
         attachSession(new NetSession(false, host, port, m_lobby->nickname(), label,
-                                    m_lobby->maxPlayers(), this));
+                                    m_lobby->maxPlayers(), 0, this));
         return;
     }
     attachSession(new ClassicSession(host, port, m_lobby->nickname(), proto, label, this));

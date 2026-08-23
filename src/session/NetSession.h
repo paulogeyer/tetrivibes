@@ -14,7 +14,7 @@ class NetSession : public GameSession {
 public:
     NetSession(bool host, const QString &hostName, quint16 port, const QString &nick,
                const QString &serverName = QString(), int maxPlayers = kMaxPlayers,
-               QObject *parent = nullptr);
+               int botCount = 0, QObject *parent = nullptr);
     ~NetSession() override;
 
     Engine *localEngine() override;
@@ -32,6 +32,11 @@ public:
     void useSpecial(int targetSlot) override;
     void sendChat(const QString &text) override;
     void tick(int ms) override;
+    void moveLeft() override;
+    void moveRight() override;
+    void rotate(int direction) override;
+    void softDrop() override;
+    void hardDrop() override;
 
     bool serverOk() const;
     void begin();
@@ -39,7 +44,8 @@ public:
 private:
     void onGameStarted(int seed);
     void onSpecial(int from, int target, Special special);
-    void broadcastField();
+    void onState(int slot, bool alive, int level, int score, int lines, const QString &inventory,
+                 const QString &field, const QString &piece);
 
     bool m_host = false;
     QString m_nick;
@@ -47,14 +53,13 @@ private:
     QString m_pendingHost;
     quint16 m_pendingPort = 31457;
     int m_maxPlayers = kMaxPlayers;
+    int m_botCount = 0;
     Server *m_server = nullptr;
     Client m_client;
     Engine m_engine;
     std::array<Field, kMaxPlayers> m_fields{};
     std::array<bool, kMaxPlayers> m_alive{};
     bool m_playing = false;
-    int m_fieldAcc = 0;
-    QString m_lastSent;
 };
 
 } // namespace tnet

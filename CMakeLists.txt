@@ -39,11 +39,11 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
-    add_executable(tetrinet_tests
-        tests/ProtocolTest.cpp
+    add_library(tetrinet_testlib STATIC
         src/game/Piece.cpp
         src/game/Field.cpp
         src/game/Engine.cpp
+        src/game/Bot.cpp
         src/net/Protocol.cpp
         src/net/Server.cpp
         src/net/Client.cpp
@@ -53,10 +53,27 @@ if(BUILD_TESTING)
         src/session/NetSession.cpp
         src/session/ClassicSession.cpp
     )
-    target_include_directories(tetrinet_tests PRIVATE src)
-    target_link_libraries(tetrinet_tests PRIVATE Qt5::Network)
+    target_include_directories(tetrinet_testlib PUBLIC src)
+    target_link_libraries(tetrinet_testlib PUBLIC Qt5::Network)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(tetrinet_tests PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(tetrinet_testlib PRIVATE -Wall -Wextra -Wpedantic)
     endif()
-    add_test(NAME tetrinet_tests COMMAND tetrinet_tests)
+
+    function(add_tetrinet_test name)
+        add_executable(${name} tests/${name}.cpp)
+        target_link_libraries(${name} PRIVATE tetrinet_testlib)
+        if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+            target_compile_options(${name} PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+        add_test(NAME ${name} COMMAND ${name})
+    endfunction()
+
+    add_tetrinet_test(DecodeInvalidNumbers)
+    add_tetrinet_test(DecodeSpecial)
+    add_tetrinet_test(DecodeState)
+    add_tetrinet_test(EncodeChatStripsNewlines)
+    add_tetrinet_test(EncodeRejectsHugeFrame)
+    add_tetrinet_test(FieldValidEncoding)
+    add_tetrinet_test(NativeHostedBots)
+    add_tetrinet_test(ClassicSessionTeardown)
 endif()
