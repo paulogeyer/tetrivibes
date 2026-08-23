@@ -21,7 +21,7 @@ namespace tnet {
 
 class StatusQuery;
 
-// Main menu (server list) and host page. Custom hosts live in ~/.tetrinet/servers.csv.
+// Main menu (server list) and host page. Custom hosts live in ~/.tetrivibes/servers.csv.
 class LobbyWidget : public QWidget {
     Q_OBJECT
 public:

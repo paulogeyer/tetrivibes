@@ -67,7 +67,7 @@ void Server::stop()
 void Server::setServerName(const QString &name)
 {
     const QString trimmed = name.trimmed();
-    m_name = trimmed.isEmpty() ? QStringLiteral("Tetrinet") : trimmed.left(32);
+    m_name = trimmed.isEmpty() ? QStringLiteral("Tetrivibes") : trimmed.left(32);
 }
 
 void Server::setMaxPlayers(int maxPlayers)

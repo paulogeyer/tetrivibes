@@ -93,7 +93,7 @@ private:
     QTimer m_gameTimer;
     std::array<ClientSlot, kMaxPlayers> m_clients{};
     QVector<Pending> m_pending;
-    QString m_name = QStringLiteral("Tetrinet");
+    QString m_name = QStringLiteral("Tetrivibes");
     int m_maxPlayers = kMaxPlayers;
     int m_botCount = 0;
     int m_botAcc = 0;

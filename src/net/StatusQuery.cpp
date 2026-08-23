@@ -30,7 +30,7 @@ StatusQuery::StatusQuery(QObject *parent)
             Message msg;
             if (!decodeMessage(line, msg) || msg.type != Message::Status)
                 continue;
-            finish(true, msg.text.isEmpty() ? QStringLiteral("Tetrinet") : msg.text, msg.slot,
+            finish(true, msg.text.isEmpty() ? QStringLiteral("Tetrivibes") : msg.text, msg.slot,
                    msg.target, msg.value != 0);
             return;
         }

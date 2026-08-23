@@ -41,7 +41,7 @@ QTableWidget::item:selected { background: #3a3a60; color: #fff; }
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
-    setWindowTitle(QStringLiteral("Tetrinet"));
+    setWindowTitle(QStringLiteral("Tetrivibes"));
     resize(1100, 720);
     qApp->setStyleSheet(QString::fromUtf8(kStyle));
 
@@ -91,7 +91,7 @@ void MainWindow::attachSession(GameSession *session)
     connect(m_session, &GameSession::chatReceived, m_game, &GameView::appendChat);
     connect(m_session, &GameSession::gameEnded, this, [this](const QString &r) {
         m_game->appendChat(QStringLiteral("* %1").arg(r));
-        QMessageBox::information(this, QStringLiteral("Tetrinet"), r);
+        QMessageBox::information(this, QStringLiteral("Tetrivibes"), r);
     });
     m_stack->setCurrentWidget(m_game);
     if (auto *net = qobject_cast<NetSession *>(m_session))
@@ -115,7 +115,7 @@ void MainWindow::hostGame()
             delete m_hostedServer;
             m_hostedServer = nullptr;
             syncHostedServerUi();
-            QMessageBox::warning(this, QStringLiteral("Tetrinet"),
+            QMessageBox::warning(this, QStringLiteral("Tetrivibes"),
                                  QStringLiteral("Could not start the server."));
             return;
         }

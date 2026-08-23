@@ -38,7 +38,7 @@ constexpr quint16 kAnnouncePort = 31458;
 
 QString serversFilePath()
 {
-    return QDir::homePath() + QStringLiteral("/.tetrinet/servers.csv");
+    return QDir::homePath() + QStringLiteral("/.tetrivibes/servers.csv");
 }
 
 QString csvEscape(const QString &value)
@@ -92,7 +92,7 @@ QString keyOf(const QString &host, quint16 port)
 LobbyWidget::LobbyWidget(QWidget *parent)
     : QWidget(parent)
 {
-    auto *title = new QLabel(QStringLiteral("TETRINET"));
+    auto *title = new QLabel(QStringLiteral("TETRIVIBES"));
     title->setObjectName(QStringLiteral("title"));
     title->setAlignment(Qt::AlignCenter);
 
@@ -111,7 +111,7 @@ LobbyWidget::LobbyWidget(QWidget *parent)
         s.setValue(QStringLiteral("nickname"), m_nick->text().trimmed());
     });
 
-    m_serverName = new QLineEdit(QStringLiteral("Tetrinet"));
+    m_serverName = new QLineEdit(QStringLiteral("Tetrivibes"));
     m_serverName->setMaxLength(32);
     m_host = new QLineEdit(QStringLiteral("127.0.0.1"));
     m_host->hide();

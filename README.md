@@ -1,4 +1,4 @@
-# Tetrinet
+# Tetrivibes
 
 Classic-style multiplayer tetromino combat written in C++17 with Qt 5.
 
@@ -10,7 +10,7 @@ Up to six players, special blocks, partyline chat, LAN host/join, and a practice
 sudo apt install qtbase5-dev cmake g++
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
-./build/tetrinet
+./build/tetrivibes
 ```
 
 ## Play

@@ -6,8 +6,8 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("Tetrinet"));
-    app.setOrganizationName(QStringLiteral("tetrinet"));
+    app.setApplicationName(QStringLiteral("Tetrivibes"));
+    app.setOrganizationName(QStringLiteral("tetrivibes"));
 
     tnet::MainWindow w;
     w.show();
