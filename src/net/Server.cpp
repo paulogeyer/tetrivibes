@@ -1,6 +1,7 @@
 #include "Server.h"
 
 #include "game/Field.h"
+#include "util/Scoreboard.h"
 
 #include <QHostAddress>
 #include <QRandomGenerator>
@@ -466,6 +467,7 @@ void Server::checkWin()
             win.type = Message::Win;
             win.slot = winner;
             broadcast(win);
+            addWin(m_clients[static_cast<size_t>(winner)].name);
         }
         m_playing = false;
         m_gameTimer.stop();

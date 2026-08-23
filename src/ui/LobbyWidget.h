@@ -38,6 +38,7 @@ public:
     void refreshServers();
     void showMain();
     void setHostedServer(bool running, quint16 port = 0, const QString &name = QString());
+    void refreshScoreboard();
 
 signals:
     void hostClicked();
@@ -94,6 +95,7 @@ private:
     QPushButton *m_shutdown = nullptr;
     QStackedWidget *m_pages = nullptr;
     QTableWidget *m_table = nullptr;
+    QTableWidget *m_scoreboard = nullptr;
     QVector<Entry> m_servers;
     QVector<StatusQuery *> m_queries;
     QUdpSocket m_lan;

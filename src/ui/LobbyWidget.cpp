@@ -1,6 +1,7 @@
 #include "LobbyWidget.h"
 
 #include "net/StatusQuery.h"
+#include "util/Scoreboard.h"
 
 #include <QAbstractItemView>
 #include <QComboBox>
@@ -218,6 +219,20 @@ LobbyWidget::LobbyWidget(QWidget *parent)
     connect(backBtn, &QPushButton::clicked, this, &LobbyWidget::showMain);
     connect(m_shutdown, &QPushButton::clicked, this, &LobbyWidget::shutdownClicked);
 
+    auto *scoreLabel = new QLabel(QStringLiteral("Scoreboard"));
+    scoreLabel->setObjectName(QStringLiteral("subtitle"));
+    m_scoreboard = new QTableWidget(0, 2);
+    m_scoreboard->setHorizontalHeaderLabels({QStringLiteral("Player"), QStringLiteral("Wins")});
+    m_scoreboard->horizontalHeader()->setStretchLastSection(false);
+    m_scoreboard->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_scoreboard->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_scoreboard->verticalHeader()->setVisible(false);
+    m_scoreboard->setSelectionMode(QAbstractItemView::NoSelection);
+    m_scoreboard->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_scoreboard->setShowGrid(false);
+    m_scoreboard->setAlternatingRowColors(true);
+    m_scoreboard->setMaximumHeight(160);
+
     auto *hostBtns = new QHBoxLayout;
     hostBtns->addWidget(backBtn);
     hostBtns->addStretch();
@@ -232,6 +247,9 @@ LobbyWidget::LobbyWidget(QWidget *parent)
     hostBox->addWidget(m_hostStatus);
     hostBox->addSpacing(16);
     hostBox->addLayout(hostForm);
+    hostBox->addSpacing(12);
+    hostBox->addWidget(scoreLabel);
+    hostBox->addWidget(m_scoreboard);
     hostBox->addSpacing(16);
     hostBox->addLayout(hostBtns);
     hostBox->addStretch();
@@ -255,6 +273,7 @@ LobbyWidget::LobbyWidget(QWidget *parent)
     buildDefaults();
     loadCustom();
     rebuildTable();
+    refreshScoreboard();
 
     m_lan.bind(QHostAddress(QHostAddress::AnyIPv4), kAnnouncePort,
                QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint);
@@ -285,6 +304,21 @@ void LobbyWidget::showMain()
 void LobbyWidget::showHost()
 {
     m_pages->setCurrentIndex(1);
+    refreshScoreboard();
+}
+
+void LobbyWidget::refreshScoreboard()
+{
+    if (!m_scoreboard)
+        return;
+    const auto entries = loadScoreboard();
+    m_scoreboard->setRowCount(entries.size());
+    for (int i = 0; i < entries.size(); ++i) {
+        m_scoreboard->setItem(i, 0, new QTableWidgetItem(entries[i].name));
+        auto *wins = new QTableWidgetItem(QString::number(entries[i].wins));
+        wins->setTextAlignment(Qt::AlignCenter);
+        m_scoreboard->setItem(i, 1, wins);
+    }
 }
 
 void LobbyWidget::setHostedServer(bool running, quint16 port, const QString &name)

@@ -28,6 +28,7 @@ add_executable(tetrivibes
     src/ui/LobbyWidget.cpp
     src/ui/GameView.cpp
     src/ui/MainWindow.cpp
+    src/util/Scoreboard.cpp
 )
 
 target_include_directories(tetrivibes PRIVATE src)
@@ -52,6 +53,7 @@ if(BUILD_TESTING)
         src/session/GameSession.cpp
         src/session/NetSession.cpp
         src/session/ClassicSession.cpp
+        src/util/Scoreboard.cpp
     )
     target_include_directories(tetrivibes_testlib PUBLIC src)
     target_link_libraries(tetrivibes_testlib PUBLIC Qt5::Network)
@@ -77,4 +79,5 @@ if(BUILD_TESTING)
     add_tetrivibes_test(NativeHostedBots)
     add_tetrivibes_test(HostedServerSurvivesLeave)
     add_tetrivibes_test(ClassicSessionTeardown)
+    add_tetrivibes_test(ScoreboardWins)
 endif()

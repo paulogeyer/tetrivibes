@@ -91,6 +91,7 @@ void MainWindow::attachSession(GameSession *session)
     connect(m_session, &GameSession::chatReceived, m_game, &GameView::appendChat);
     connect(m_session, &GameSession::gameEnded, this, [this](const QString &r) {
         m_game->appendChat(QStringLiteral("* %1").arg(r));
+        m_lobby->refreshScoreboard();
         QMessageBox::information(this, QStringLiteral("Tetrivibes"), r);
     });
     m_stack->setCurrentWidget(m_game);
@@ -158,6 +159,7 @@ void MainWindow::leaveGame()
         m_session = nullptr;
     }
     syncHostedServerUi();
+    m_lobby->refreshScoreboard();
     m_stack->setCurrentWidget(m_lobby);
     m_lobby->showMain();
 }
