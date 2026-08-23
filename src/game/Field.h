@@ -30,11 +30,10 @@ public:
     int filledCount() const;
     int holeCount() const;
     int stackHeight() const;
-    bool spawnBlocked(const Piece &piece) const;
 
     void addLine(std::mt19937 &rng);
     void clearBottomLine();
-    void clearSpecials();
+    void clearSpecials(std::mt19937 &rng);
     void randomClear(std::mt19937 &rng);
     void bomb(std::mt19937 &rng);
     void quake(std::mt19937 &rng);
@@ -46,6 +45,7 @@ public:
 
     QString encode() const;
     static Field decode(const QString &data);
+    static bool isValidEncoding(const QString &data);
 
     const std::array<std::array<Cell, kFieldWidth>, kFieldHeight> &cells() const { return m_cells; }
 

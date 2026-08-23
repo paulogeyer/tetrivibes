@@ -5,6 +5,11 @@
 #include <QIODevice>
 
 namespace tnet {
+namespace {
+
+constexpr int kMaxClassicFrameSize = 4096;
+
+} // namespace
 
 ClassicClient::ClassicClient(QObject *parent)
     : QObject(parent)
@@ -21,6 +26,13 @@ ClassicClient::ClassicClient(QObject *parent)
     });
     m_loginTimer.setSingleShot(true);
     connect(&m_loginTimer, &QTimer::timeout, this, &ClassicClient::onLoginTimeout);
+}
+
+ClassicClient::~ClassicClient()
+{
+    m_loginTimer.stop();
+    m_socket.disconnect(this);
+    m_socket.abort();
 }
 
 void ClassicClient::connectTo(const QString &host, quint16 port, const QString &nick,
@@ -140,11 +152,20 @@ void ClassicClient::onReadyRead()
     m_buffer += m_socket.readAll();
     int idx;
     while ((idx = m_buffer.indexOf(char(0xff))) >= 0) {
+        if (idx >= kMaxClassicFrameSize) {
+            emit errorText(QStringLiteral("Received oversized server frame."));
+            disconnectFromHost();
+            return;
+        }
         const QByteArray raw = m_buffer.left(idx);
         m_buffer.remove(0, idx + 1);
         ClassicMessage msg;
         parseClassicLine(QString::fromLatin1(raw), msg);
         handle(msg);
+    }
+    if (m_buffer.size() >= kMaxClassicFrameSize) {
+        emit errorText(QStringLiteral("Received oversized server frame."));
+        disconnectFromHost();
     }
 }
 

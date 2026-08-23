@@ -59,6 +59,14 @@ MainWindow::MainWindow(QWidget *parent)
     m_timer = startTimer(16);
 }
 
+MainWindow::~MainWindow()
+{
+    killTimer(m_timer);
+    m_game->setSession(nullptr);
+    delete m_session;
+    m_session = nullptr;
+}
+
 void MainWindow::attachSession(GameSession *session)
 {
     if (m_session) {

@@ -3,34 +3,58 @@
 #include <QList>
 
 namespace tnet {
+namespace {
+
+bool parseInt(const QString &text, int &value)
+{
+    bool ok = false;
+    const int parsed = text.toInt(&ok);
+    if (!ok)
+        return false;
+    value = parsed;
+    return true;
+}
+
+QString lineText(const QString &text)
+{
+    QString clean = text;
+    clean.remove(QLatin1Char('\r'));
+    clean.remove(QLatin1Char('\n'));
+    return clean;
+}
+
+} // namespace
 
 QByteArray encodeMessage(const Message &msg)
 {
     QString line;
     switch (msg.type) {
     case Message::Nick:
-        line = QStringLiteral("NICK %1").arg(msg.text);
+        line = QStringLiteral("NICK %1").arg(lineText(msg.text));
         break;
     case Message::Welcome:
         line = QStringLiteral("WELCOME %1").arg(msg.slot);
         break;
     case Message::Player:
-        line = QStringLiteral("PLAYER %1 %2").arg(msg.slot).arg(msg.text);
+        line = QStringLiteral("PLAYER %1 %2").arg(msg.slot).arg(lineText(msg.text));
         break;
     case Message::Left:
         line = QStringLiteral("LEFT %1").arg(msg.slot);
         break;
     case Message::Chat:
-        line = QStringLiteral("CHAT %1 %2").arg(msg.slot).arg(msg.text);
+        line = QStringLiteral("CHAT %1 %2").arg(msg.slot).arg(lineText(msg.text));
         break;
     case Message::Start:
         line = QStringLiteral("START %1").arg(msg.value);
         break;
     case Message::Field:
-        line = QStringLiteral("FIELD %1 %2").arg(msg.slot).arg(msg.data);
+        line = QStringLiteral("FIELD %1 %2").arg(msg.slot).arg(lineText(msg.data));
         break;
     case Message::Special:
-        line = QStringLiteral("SPECIAL %1 %2 %3").arg(msg.slot).arg(msg.target).arg(msg.text);
+        line = QStringLiteral("SPECIAL %1 %2 %3")
+                   .arg(msg.slot)
+                   .arg(msg.target)
+                   .arg(lineText(msg.text));
         break;
     case Message::Lose:
         line = QStringLiteral("LOSE %1").arg(msg.slot);
@@ -52,13 +76,16 @@ QByteArray encodeMessage(const Message &msg)
                    .arg(msg.slot)
                    .arg(msg.target)
                    .arg(msg.value)
-                   .arg(msg.text);
+                   .arg(lineText(msg.text));
         break;
     default:
         return {};
     }
-    line += QLatin1Char('\n');
-    return line.toUtf8();
+    QByteArray encoded = line.toUtf8();
+    if (encoded.size() >= kMaxNativeFrameSize)
+        return {};
+    encoded += '\n';
+    return encoded;
 }
 
 bool decodeMessage(const QByteArray &raw, Message &msg)
@@ -66,7 +93,7 @@ bool decodeMessage(const QByteArray &raw, Message &msg)
     const QString line = QString::fromUtf8(raw).trimmed();
     if (line.isEmpty())
         return false;
-    const QStringList parts = line.split(QLatin1Char(' '));
+    const QStringList parts = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
     const QString cmd = parts[0];
     msg = Message{};
 
@@ -82,53 +109,61 @@ bool decodeMessage(const QByteArray &raw, Message &msg)
         return true;
     }
     if (cmd == QLatin1String("WELCOME") && parts.size() >= 2) {
+        if (!parseInt(parts[1], msg.slot))
+            return false;
         msg.type = Message::Welcome;
-        msg.slot = parts[1].toInt();
         return true;
     }
     if (cmd == QLatin1String("PLAYER") && parts.size() >= 3) {
+        if (!parseInt(parts[1], msg.slot))
+            return false;
         msg.type = Message::Player;
-        msg.slot = parts[1].toInt();
         msg.text = restFrom(2);
         return true;
     }
     if (cmd == QLatin1String("LEFT") && parts.size() >= 2) {
+        if (!parseInt(parts[1], msg.slot))
+            return false;
         msg.type = Message::Left;
-        msg.slot = parts[1].toInt();
         return true;
     }
     if (cmd == QLatin1String("CHAT") && parts.size() >= 3) {
+        if (!parseInt(parts[1], msg.slot))
+            return false;
         msg.type = Message::Chat;
-        msg.slot = parts[1].toInt();
         msg.text = restFrom(2);
         return true;
     }
     if (cmd == QLatin1String("START") && parts.size() >= 2) {
+        if (!parseInt(parts[1], msg.value))
+            return false;
         msg.type = Message::Start;
-        msg.value = parts[1].toInt();
         return true;
     }
     if (cmd == QLatin1String("FIELD") && parts.size() >= 3) {
+        if (!parseInt(parts[1], msg.slot))
+            return false;
         msg.type = Message::Field;
-        msg.slot = parts[1].toInt();
         msg.data = parts[2];
         return true;
     }
     if (cmd == QLatin1String("SPECIAL") && parts.size() >= 4) {
+        if (!parseInt(parts[1], msg.slot) || !parseInt(parts[2], msg.target))
+            return false;
         msg.type = Message::Special;
-        msg.slot = parts[1].toInt();
-        msg.target = parts[2].toInt();
         msg.text = parts[3];
         return true;
     }
     if (cmd == QLatin1String("LOSE") && parts.size() >= 2) {
+        if (!parseInt(parts[1], msg.slot))
+            return false;
         msg.type = Message::Lose;
-        msg.slot = parts[1].toInt();
         return true;
     }
     if (cmd == QLatin1String("WIN") && parts.size() >= 2) {
+        if (!parseInt(parts[1], msg.slot))
+            return false;
         msg.type = Message::Win;
-        msg.slot = parts[1].toInt();
         return true;
     }
     if (cmd == QLatin1String("PING")) {
@@ -144,10 +179,10 @@ bool decodeMessage(const QByteArray &raw, Message &msg)
         return true;
     }
     if (cmd == QLatin1String("STATUS") && parts.size() >= 4) {
+        if (!parseInt(parts[1], msg.slot) || !parseInt(parts[2], msg.target)
+            || !parseInt(parts[3], msg.value))
+            return false;
         msg.type = Message::Status;
-        msg.slot = parts[1].toInt();
-        msg.target = parts[2].toInt();
-        msg.value = parts[3].toInt();
         msg.text = restFrom(4);
         return true;
     }

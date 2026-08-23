@@ -21,6 +21,10 @@ StatusQuery::StatusQuery(QObject *parent)
         m_buffer += m_socket.readAll();
         int idx;
         while ((idx = m_buffer.indexOf('\n')) >= 0) {
+            if (idx >= kMaxNativeFrameSize) {
+                finish(false, {}, 0, 0, false);
+                return;
+            }
             const QByteArray line = m_buffer.left(idx);
             m_buffer.remove(0, idx + 1);
             Message msg;
@@ -30,6 +34,8 @@ StatusQuery::StatusQuery(QObject *parent)
                    msg.target, msg.value != 0);
             return;
         }
+        if (m_buffer.size() >= kMaxNativeFrameSize)
+            finish(false, {}, 0, 0, false);
     });
 }
 

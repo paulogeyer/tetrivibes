@@ -54,7 +54,7 @@ NetSession::NetSession(bool host, const QString &hostName, quint16 port, const Q
     });
     connect(&m_client, &Client::gameStarted, this, &NetSession::onGameStarted);
     connect(&m_client, &Client::fieldReceived, this, [this](int slot, const QString &data) {
-        if (slot >= 0 && slot < kMaxPlayers)
+        if (slot >= 0 && slot < kMaxPlayers && Field::isValidEncoding(data))
             m_fields[static_cast<size_t>(slot)] = Field::decode(data);
         emit updated();
     });
@@ -95,6 +95,11 @@ void NetSession::begin()
 
 NetSession::~NetSession()
 {
+    QObject::disconnect(&m_client, nullptr, this, nullptr);
+    if (m_server) {
+        QObject::disconnect(m_server, nullptr, this, nullptr);
+        m_server->stop();
+    }
     m_client.disconnectFromHost();
 }
 
@@ -163,8 +168,8 @@ QString NetSession::statusText() const
 
 void NetSession::startGame()
 {
-    if (m_host)
-        m_client.sendStart();
+    if (m_host && m_server)
+        m_server->startGame();
 }
 
 void NetSession::onGameStarted(int seed)

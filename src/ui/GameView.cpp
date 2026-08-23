@@ -238,21 +238,7 @@ void GameView::focusInEvent(QFocusEvent *event)
 
 void GameView::keyReleaseEvent(QKeyEvent *event)
 {
-    if (event->isAutoRepeat())
-        return;
-    switch (event->key()) {
-    case Qt::Key_Left:
-        m_left = false;
-        break;
-    case Qt::Key_Right:
-        m_right = false;
-        break;
-    case Qt::Key_Down:
-        m_down = false;
-        break;
-    default:
-        QWidget::keyReleaseEvent(event);
-    }
+    QWidget::keyReleaseEvent(event);
 }
 
 void GameView::keyPressEvent(QKeyEvent *event)

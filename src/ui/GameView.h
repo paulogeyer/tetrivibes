@@ -56,9 +56,6 @@ private:
     QPushButton *m_channels = nullptr;
     QDialog *m_channelDlg = nullptr;
     QTableWidget *m_channelTable = nullptr;
-    bool m_left = false;
-    bool m_right = false;
-    bool m_down = false;
 };
 
 } // namespace tnet

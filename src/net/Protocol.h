@@ -5,6 +5,8 @@
 
 namespace tnet {
 
+constexpr int kMaxNativeFrameSize = 4096;
+
 // Line-based protocol for the built-in native server (not classic TetriNET).
 struct Message {
     enum Type {

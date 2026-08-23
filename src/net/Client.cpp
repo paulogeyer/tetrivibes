@@ -17,6 +17,12 @@ Client::Client(QObject *parent)
     });
 }
 
+Client::~Client()
+{
+    m_socket.disconnect(this);
+    m_socket.abort();
+}
+
 void Client::connectTo(const QString &host, quint16 port, const QString &nick)
 {
     m_nick = nick;
@@ -84,13 +90,6 @@ void Client::sendLose()
     send(m);
 }
 
-void Client::sendStart()
-{
-    Message m;
-    m.type = Message::Start;
-    send(m);
-}
-
 void Client::send(const Message &msg)
 {
     if (isConnected())
@@ -102,11 +101,20 @@ void Client::onReadyRead()
     m_buffer += m_socket.readAll();
     int idx;
     while ((idx = m_buffer.indexOf('\n')) >= 0) {
+        if (idx >= kMaxNativeFrameSize) {
+            emit errorText(QStringLiteral("Received oversized server frame."));
+            m_socket.disconnectFromHost();
+            return;
+        }
         const QByteArray line = m_buffer.left(idx);
         m_buffer.remove(0, idx + 1);
         Message msg;
         if (decodeMessage(line, msg))
             handle(msg);
+    }
+    if (m_buffer.size() >= kMaxNativeFrameSize) {
+        emit errorText(QStringLiteral("Received oversized server frame."));
+        m_socket.disconnectFromHost();
     }
 }
 

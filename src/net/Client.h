@@ -14,6 +14,7 @@ class Client : public QObject {
     Q_OBJECT
 public:
     explicit Client(QObject *parent = nullptr);
+    ~Client() override;
 
     void connectTo(const QString &host, quint16 port, const QString &nick);
     void disconnectFromHost();
@@ -23,7 +24,6 @@ public:
     void sendField(const QString &data);
     void sendSpecial(int target, Special special);
     void sendLose();
-    void sendStart();
     void sendNick(const QString &nick);
 
     int localSlot() const { return m_slot; }

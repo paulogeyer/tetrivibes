@@ -1,5 +1,7 @@
 #include "Server.h"
 
+#include "game/Field.h"
+
 #include <QHostAddress>
 #include <QRandomGenerator>
 #include <algorithm>
@@ -149,6 +151,11 @@ void Server::onPendingRead()
     p.buffer += sock->readAll();
     int nl;
     while ((nl = p.buffer.indexOf('\n')) >= 0) {
+        if (nl >= kMaxNativeFrameSize) {
+            emit logLine(QStringLiteral("Rejected oversized pending request"));
+            sock->disconnectFromHost();
+            return;
+        }
         const QByteArray line = p.buffer.left(nl);
         p.buffer.remove(0, nl + 1);
         Message msg;
@@ -178,6 +185,10 @@ void Server::onPendingRead()
             }
             return;
         }
+    }
+    if (p.buffer.size() >= kMaxNativeFrameSize) {
+        emit logLine(QStringLiteral("Rejected oversized pending request"));
+        sock->disconnectFromHost();
     }
 }
 
@@ -265,11 +276,20 @@ void Server::processClient(QTcpSocket *sock)
     c.buffer += sock->readAll();
     int idx;
     while ((idx = c.buffer.indexOf('\n')) >= 0) {
+        if (idx >= kMaxNativeFrameSize) {
+            emit logLine(QStringLiteral("Rejected oversized frame from slot %1").arg(slot + 1));
+            sock->disconnectFromHost();
+            return;
+        }
         const QByteArray line = c.buffer.left(idx);
         c.buffer.remove(0, idx + 1);
         Message msg;
         if (decodeMessage(line, msg))
             handle(slot, msg);
+    }
+    if (c.buffer.size() >= kMaxNativeFrameSize) {
+        emit logLine(QStringLiteral("Rejected oversized frame from slot %1").arg(slot + 1));
+        sock->disconnectFromHost();
     }
 }
 
@@ -315,7 +335,7 @@ void Server::handle(int slot, const Message &msg)
         break;
     }
     case Message::Field:
-        if (m_playing && c.alive) {
+        if (m_playing && c.alive && Field::isValidEncoding(msg.data)) {
             c.field = msg.data;
             Message field = msg;
             field.slot = slot;
@@ -324,7 +344,8 @@ void Server::handle(int slot, const Message &msg)
         break;
     case Message::Special:
         if (m_playing && c.alive && msg.target >= 0 && msg.target < kMaxPlayers
-            && m_clients[static_cast<size_t>(msg.target)].used) {
+            && m_clients[static_cast<size_t>(msg.target)].alive && msg.text.size() == 1
+            && isSpecial(charToCell(msg.text[0].toLatin1()))) {
             Message spec = msg;
             spec.slot = slot;
             broadcast(spec);
@@ -341,7 +362,7 @@ void Server::handle(int slot, const Message &msg)
         }
         break;
     case Message::Start:
-        startGame();
+        // Only an embedded host may call startGame(); peer commands cannot start matches.
         break;
     case Message::Ping: {
         Message pong;

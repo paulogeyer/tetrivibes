@@ -152,6 +152,7 @@ ClassicSession::ClassicSession(const QString &host, quint16 port, const QString 
 
 ClassicSession::~ClassicSession()
 {
+    QObject::disconnect(&m_client, nullptr, this, nullptr);
     m_client.disconnectFromHost();
 }
 

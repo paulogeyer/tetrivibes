@@ -85,8 +85,9 @@ QString encodeClassicField(const Field &field)
 // Full update: 264 cell chars. Partial: type ('!'..) + x/y encoded as 0x33+coord.
 void applyClassicField(Field &field, const QString &data)
 {
-    if (data.size() >= kFieldWidth * kFieldHeight) {
-        field = Field::decode(data);
+    if (data.size() == kFieldWidth * kFieldHeight) {
+        if (Field::isValidEncoding(data))
+            field = Field::decode(data);
         return;
     }
     int i = 0;

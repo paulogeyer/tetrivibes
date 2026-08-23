@@ -16,6 +16,7 @@ class ClassicClient : public QObject {
     Q_OBJECT
 public:
     explicit ClassicClient(QObject *parent = nullptr);
+    ~ClassicClient() override;
 
     void connectTo(const QString &host, quint16 port, const QString &nick, JoinProtocol proto);
     void disconnectFromHost();

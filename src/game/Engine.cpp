@@ -23,7 +23,6 @@ void Engine::reset(uint32_t seed)
     m_score = 0;
     m_gravityAcc = 0;
     m_lockAcc = 0;
-    m_grounded = false;
     m_spawnDelay = 200;
     m_next = randomPiece();
     emit inventoryChanged();
@@ -46,7 +45,6 @@ void Engine::spawn()
     m_hasPiece = true;
     m_gravityAcc = 0;
     m_lockAcc = 0;
-    m_grounded = false;
     if (!m_field.fits(m_current)) {
         m_alive = false;
         m_hasPiece = false;
@@ -189,7 +187,7 @@ void Engine::applySpecial(Special special)
         m_field.clearBottomLine();
         break;
     case Special::ClearSpecial:
-        m_field.clearSpecials();
+        m_field.clearSpecials(m_rng);
         break;
     case Special::RandomClear:
         m_field.randomClear(m_rng);

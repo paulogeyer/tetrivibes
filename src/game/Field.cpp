@@ -163,11 +163,6 @@ int Field::stackHeight() const
     return 0;
 }
 
-bool Field::spawnBlocked(const Piece &piece) const
-{
-    return !fits(piece);
-}
-
 void Field::shiftUp()
 {
     for (int y = 0; y < kFieldHeight - 1; ++y)
@@ -205,10 +200,9 @@ void Field::clearBottomLine()
     shiftDown();
 }
 
-void Field::clearSpecials()
+void Field::clearSpecials(std::mt19937 &rng)
 {
     std::uniform_int_distribution<int> color(1, 5);
-    std::mt19937 rng{std::random_device{}()};
     for (int y = 0; y < kFieldHeight; ++y) {
         for (int x = 0; x < kFieldWidth; ++x) {
             if (isSpecial(at(x, y)))
@@ -364,6 +358,38 @@ Field Field::decode(const QString &data)
         f.set(x, y, charToCell(data[i].toLatin1()));
     }
     return f;
+}
+
+bool Field::isValidEncoding(const QString &data)
+{
+    if (data.size() != kFieldWidth * kFieldHeight)
+        return false;
+    for (const QChar ch : data) {
+        switch (ch.toLatin1()) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case 'a':
+        case 'b':
+        case 'c':
+        case 'r':
+        case 'o':
+        case 'q':
+        case 'g':
+        case 's':
+        case 'n':
+        case 'l':
+        case 'p':
+        case 'z':
+            break;
+        default:
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace tnet

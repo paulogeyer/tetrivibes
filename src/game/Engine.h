@@ -75,7 +75,6 @@ private:
     int m_lockAcc = 0;
     int m_pieceDelay = 700;
     int m_startLevel = 1;
-    bool m_grounded = false;
     bool m_paused = false;
 };
 
