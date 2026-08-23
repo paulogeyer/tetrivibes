@@ -67,6 +67,7 @@
           ];
 
           shellHook = ''
+            export QT_PLUGIN_PATH="${pkgs.qt5.qtbase.bin}/lib/qt-${pkgs.qt5.qtbase.version}/plugins''${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
             echo "Tetrivibes development shell"
             echo "Build: cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build"
             echo "Test:  ctest --test-dir build --output-on-failure"
