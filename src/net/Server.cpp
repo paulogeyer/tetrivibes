@@ -81,6 +81,16 @@ void Server::setBotCount(int botCount)
     m_botCount = std::clamp(botCount, 0, kMaxPlayers - 1);
 }
 
+bool Server::setInvadersMode(bool enabled)
+{
+    if (m_playing)
+        return false;
+    m_invadersArmed = enabled;
+    emit logLine(enabled ? QStringLiteral("Signal acquired: native field channel rerouted")
+                         : QStringLiteral("Native field channel restored"));
+    return true;
+}
+
 bool Server::isListening() const
 {
     return m_server.isListening();
@@ -118,6 +128,7 @@ void Server::returnToLobby()
     for (auto &c : m_clients) {
         c.alive = false;
         c.engine.reset();
+        c.invaders.reset();
         c.botAi.reset();
         c.inputAction.clear();
         c.inputTarget = -1;
@@ -129,29 +140,40 @@ void Server::startGame()
     if (m_playing || playerCount() < 1)
         return;
     m_playing = true;
+    m_invadersMode = m_invadersArmed;
     const int seed = static_cast<int>(QRandomGenerator::global()->generate() & 0x7fffffff);
     for (int i = 0; i < kMaxPlayers; ++i) {
         auto &c = m_clients[static_cast<size_t>(i)];
         c.alive = c.used;
         c.botAi.reset();
+        c.engine.reset();
+        c.invaders.reset();
         c.inputAction.clear();
         c.inputTarget = -1;
         if (c.used) {
-            c.engine = std::make_unique<Engine>();
-            c.engine->reset(static_cast<uint32_t>(seed) + static_cast<uint32_t>(i) * 7919u);
-            if (c.bot)
-                c.botAi = std::make_unique<Bot>(c.engine.get());
+            const uint32_t playerSeed = static_cast<uint32_t>(seed)
+                + static_cast<uint32_t>(i) * 7919u;
+            if (m_invadersMode) {
+                c.invaders = std::make_unique<InvadersEngine>();
+                c.invaders->reset(playerSeed);
+            } else {
+                c.engine = std::make_unique<Engine>();
+                c.engine->reset(playerSeed);
+                if (c.bot)
+                    c.botAi = std::make_unique<Bot>(c.engine.get());
+            }
         }
     }
     Message start;
     start.type = Message::Start;
-    start.value = seed;
+    start.value = m_invadersMode ? kInvadersStartMarker : seed;
     broadcast(start);
     for (int i = 0; i < kMaxPlayers; ++i)
         if (m_clients[static_cast<size_t>(i)].used)
             broadcastState(i);
     m_gameTimer.start();
-    emit logLine(QStringLiteral("Game started"));
+    emit logLine(m_invadersMode ? QStringLiteral("Game started (signal 1978)")
+                                : QStringLiteral("Game started"));
 }
 
 void Server::onNewConnection()
@@ -280,10 +302,16 @@ bool Server::promotePending(QTcpSocket *sock, const QString &nick)
     emit logLine(QStringLiteral("%1 joined slot %2").arg(c.name).arg(slot + 1));
     if (m_playing) {
         c.alive = true;
-        c.engine = std::make_unique<Engine>();
-        c.engine->reset(QRandomGenerator::global()->generate());
+        if (m_invadersMode) {
+            c.invaders = std::make_unique<InvadersEngine>();
+            c.invaders->reset(QRandomGenerator::global()->generate());
+        } else {
+            c.engine = std::make_unique<Engine>();
+            c.engine->reset(QRandomGenerator::global()->generate());
+        }
         Message start;
         start.type = Message::Start;
+        start.value = m_invadersMode ? kInvadersStartMarker : 0;
         sendTo(slot, start);
         for (int i = 0; i < kMaxPlayers; ++i) {
             if (m_clients[static_cast<size_t>(i)].used)
@@ -412,7 +440,7 @@ void Server::handle(int slot, const Message &msg)
         break;
     }
     case Message::Input:
-        if (!m_playing || !c.alive || !c.engine)
+        if (!m_playing || !c.alive || (!c.engine && !c.invaders))
             break;
         if (c.inputAction.isEmpty()) {
             c.inputAction = msg.text;
@@ -520,6 +548,11 @@ void Server::tickBots()
     const QVector<int> stack = heights();
     for (int i = 0; i < kMaxPlayers; ++i) {
         auto &c = m_clients[static_cast<size_t>(i)];
+        if (m_invadersMode) {
+            if (c.bot && c.alive && c.invaders)
+                c.invaders->autoplay();
+            continue;
+        }
         if (!c.bot || !c.alive || !c.botAi || !c.engine)
             continue;
         c.botAi->thinkAndAct();
@@ -540,15 +573,19 @@ void Server::tickGame()
     tickBots();
     for (int i = 0; i < kMaxPlayers; ++i) {
         auto &c = m_clients[static_cast<size_t>(i)];
-        if (!c.alive || !c.engine)
+        if (!c.alive || (!c.engine && !c.invaders))
             continue;
         if (!c.inputAction.isEmpty()) {
             applyInput(i, c.inputAction, c.inputTarget);
             c.inputAction.clear();
             c.inputTarget = -1;
         }
-        c.engine->tick(m_gameTimer.interval());
-        if (!c.engine->alive()) {
+        if (m_invadersMode)
+            c.invaders->tick(m_gameTimer.interval());
+        else
+            c.engine->tick(m_gameTimer.interval());
+        const bool stillAlive = m_invadersMode ? c.invaders->alive() : c.engine->alive();
+        if (!stillAlive) {
             c.alive = false;
             Message lose;
             lose.type = Message::Lose;
@@ -563,6 +600,17 @@ void Server::tickGame()
 void Server::applyInput(int slot, const QString &action, int target)
 {
     auto &c = m_clients[static_cast<size_t>(slot)];
+    if (m_invadersMode) {
+        if (!c.invaders)
+            return;
+        if (action == QLatin1String("left"))
+            c.invaders->moveLeft();
+        else if (action == QLatin1String("right"))
+            c.invaders->moveRight();
+        else if (action == QLatin1String("drop") || action == QLatin1String("down"))
+            c.invaders->fire();
+        return;
+    }
     if (!c.engine)
         return;
     if (action == QLatin1String("left"))
@@ -585,12 +633,22 @@ void Server::applyInput(int slot, const QString &action, int target)
 void Server::broadcastState(int slot)
 {
     const auto &c = m_clients[static_cast<size_t>(slot)];
-    if (!c.used || !c.engine)
+    if (!c.used || (!c.engine && !c.invaders))
         return;
     Message state;
     state.type = Message::State;
     state.slot = slot;
     state.value = c.alive ? 1 : 0;
+    if (m_invadersMode) {
+        state.level = c.invaders->wave();
+        state.score = c.invaders->score();
+        state.lines = c.invaders->lives();
+        state.text = QStringLiteral("-");
+        state.data = c.invaders->field().encode();
+        state.piece = encodeLivePieces(false, Piece{}, Piece{});
+        broadcast(state);
+        return;
+    }
     state.level = c.engine->level();
     state.score = c.engine->score();
     state.lines = c.engine->lines();

@@ -25,10 +25,12 @@ public:
     bool slotAlive(int slot) const override;
     bool canStart() const override;
     bool isHost() const override { return m_host; }
+    bool secretMode() const override { return m_invaders || m_invadersArmed; }
     bool playing() const override { return m_playing; }
     QString statusText() const override;
 
     void startGame() override;
+    bool activateSecretMode() override;
     void useSpecial(int targetSlot) override;
     void sendChat(const QString &text) override;
     void tick(int ms) override;
@@ -62,6 +64,8 @@ private:
     std::array<Field, kMaxPlayers> m_fields{};
     std::array<bool, kMaxPlayers> m_alive{};
     bool m_playing = false;
+    bool m_invadersArmed = false;
+    bool m_invaders = false;
 };
 
 } // namespace tnet

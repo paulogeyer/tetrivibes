@@ -75,12 +75,26 @@ NetSession::NetSession(bool host, const QString &hostName, quint16 port, const Q
     connect(&m_client, &Client::playerLost, this, [this](int slot) {
         if (slot >= 0 && slot < kMaxPlayers)
             m_alive[static_cast<size_t>(slot)] = false;
-        emit chatReceived(QStringLiteral("* %1 topped out").arg(playerName(slot)));
+        emit chatReceived(m_invaders
+                              ? QStringLiteral("* %1 lost the last ship").arg(playerName(slot))
+                              : QStringLiteral("* %1 topped out").arg(playerName(slot)));
+        if (m_invaders) {
+            const bool anyoneAlive = std::any_of(m_alive.begin(), m_alive.end(), [](bool alive) {
+                return alive;
+            });
+            if (!anyoneAlive) {
+                m_playing = false;
+                emit gameEnded(QStringLiteral("Signal lost — %1 points").arg(m_engine.score()));
+                emit statusChanged();
+            }
+        }
         emit updated();
     });
     connect(&m_client, &Client::playerWon, this, [this](int slot) {
         m_playing = false;
-        emit gameEnded(QStringLiteral("%1 wins!").arg(playerName(slot)));
+        emit gameEnded(m_invaders
+                           ? QStringLiteral("%1 defended the signal!").arg(playerName(slot))
+                           : QStringLiteral("%1 wins!").arg(playerName(slot)));
         emit statusChanged();
     });
 
@@ -180,9 +194,17 @@ QString NetSession::statusText() const
     if (!m_client.isConnected())
         return QStringLiteral("Connecting to %1…")
             .arg(m_serverName.isEmpty() ? m_pendingHost : m_serverName);
-    if (!m_playing)
+    if (!m_playing) {
+        if (m_invadersArmed)
+            return QStringLiteral("SIGNAL 1978 ARMED — press Start");
         return m_host ? QStringLiteral("Host lobby — press Start when ready")
                       : QStringLiteral("Waiting for host to start");
+    }
+    if (m_invaders)
+        return QStringLiteral("WAVE %1  %2 pts  %3 ships")
+            .arg(m_engine.level())
+            .arg(m_engine.score())
+            .arg(m_engine.lines());
     return QStringLiteral("L%1  %2 pts  %3 lines")
         .arg(m_engine.level())
         .arg(m_engine.score())
@@ -195,9 +217,21 @@ void NetSession::startGame()
         m_server->startGame();
 }
 
+bool NetSession::activateSecretMode()
+{
+    if (!m_host || m_playing || !m_server || !m_server->setInvadersMode(true))
+        return false;
+    m_invadersArmed = true;
+    emit chatReceived(QStringLiteral("* SIGNAL 1978 — field carrier armed"));
+    emit statusChanged();
+    emit updated();
+    return true;
+}
+
 void NetSession::onGameStarted(int seed)
 {
-    Q_UNUSED(seed);
+    m_invaders = seed == kInvadersStartMarker;
+    m_invadersArmed = false;
     m_playing = true;
     m_alive.fill(false);
     for (int i = 0; i < kMaxPlayers; ++i) {
@@ -205,13 +239,16 @@ void NetSession::onGameStarted(int seed)
         if (m_client.slotUsed(i))
             m_alive[static_cast<size_t>(i)] = true;
     }
-    emit chatReceived(QStringLiteral("* Game started"));
+    emit chatReceived(m_invaders ? QStringLiteral("* SIGNAL 1978 LOCKED — SPACE INVADERS")
+                                 : QStringLiteral("* Game started"));
     emit statusChanged();
     emit updated();
 }
 
 void NetSession::useSpecial(int targetSlot)
 {
+    if (m_invaders)
+        return;
     if (!m_playing || !m_engine.alive() || m_engine.inventory().isEmpty())
         return;
     if (!slotOccupied(targetSlot))
@@ -273,6 +310,10 @@ void NetSession::moveRight()
 
 void NetSession::rotate(int direction)
 {
+    if (m_invaders) {
+        m_client.sendInput(QStringLiteral("drop"));
+        return;
+    }
     m_client.sendInput(direction < 0 ? QStringLiteral("ccw") : QStringLiteral("cw"));
 }
 

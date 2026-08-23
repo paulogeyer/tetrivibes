@@ -6,6 +6,8 @@
 namespace tnet {
 
 constexpr int kMaxNativeFrameSize = 4096;
+// Negative values are outside the native Tetris seed range and can safely mark the hidden mode.
+constexpr int kInvadersStartMarker = -0x49564e;
 
 // Line-based protocol for the built-in native server (not classic TetriNET).
 struct Message {

@@ -65,6 +65,33 @@ This client was vibecoded with [OpenCode](https://opencode.ai) and Grok 4.6 — 
 
 ## Build
 
+### NixOS / Nix (recommended)
+
+The repository includes a package template with a reproducible development
+shell. Enter it and build normally:
+
+```bash
+nix develop
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake --build build
+./build/tetrivibes
+```
+
+You can also build, test, and run the packaged application directly:
+
+```bash
+nix build
+nix flake check
+nix run
+```
+
+The development shell includes Qt 5, CMake, Ninja, Clang tooling, and GDB, so
+the source can be edited and debugged without installing project dependencies
+globally.
+
+### Other Linux distributions
+
 ```bash
 sudo apt install qtbase5-dev cmake g++
 ./build.sh

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(tetrivibes LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -12,6 +14,7 @@ add_executable(tetrivibes
     src/game/Piece.cpp
     src/game/Field.cpp
     src/game/Engine.cpp
+    src/game/InvadersEngine.cpp
     src/game/Bot.cpp
     src/net/Protocol.cpp
     src/net/Server.cpp
@@ -34,6 +37,10 @@ add_executable(tetrivibes
 target_include_directories(tetrivibes PRIVATE src)
 target_link_libraries(tetrivibes PRIVATE Qt5::Widgets Qt5::Network)
 
+install(TARGETS tetrivibes
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(tetrivibes PRIVATE -Wall -Wextra -Wpedantic)
 endif()
@@ -44,6 +51,7 @@ if(BUILD_TESTING)
         src/game/Piece.cpp
         src/game/Field.cpp
         src/game/Engine.cpp
+        src/game/InvadersEngine.cpp
         src/game/Bot.cpp
         src/net/Protocol.cpp
         src/net/Server.cpp
@@ -77,6 +85,8 @@ if(BUILD_TESTING)
     add_tetrivibes_test(EncodeRejectsHugeFrame)
     add_tetrivibes_test(FieldValidEncoding)
     add_tetrivibes_test(NativeHostedBots)
+    add_tetrivibes_test(NativeInvadersMode)
+    add_tetrivibes_test(InvadersEngineTest)
     add_tetrivibes_test(HostedServerSurvivesLeave)
     add_tetrivibes_test(ClassicSessionTeardown)
     add_tetrivibes_test(ScoreboardWins)

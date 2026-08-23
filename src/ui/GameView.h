@@ -4,6 +4,7 @@
 #include "session/GameSession.h"
 
 #include <QWidget>
+#include <QString>
 #include <array>
 
 class QDialog;
@@ -55,6 +56,7 @@ private:
     QPushButton *m_start = nullptr;
     QPushButton *m_channels = nullptr;
     bool m_startArmed = false;
+    QString m_secretKeys;
     QDialog *m_channelDlg = nullptr;
     QTableWidget *m_channelTable = nullptr;
 };

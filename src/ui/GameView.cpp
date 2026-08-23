@@ -88,6 +88,7 @@ void GameView::setSession(GameSession *session)
 {
     m_session = session;
     m_startArmed = false;
+    m_secretKeys.clear();
     m_chat->clear();
     if (m_channelDlg)
         m_channelDlg->hide();
@@ -113,8 +114,12 @@ void GameView::refresh()
 
     Engine *eng = m_session->localEngine();
     const int me = m_session->localSlot();
+    const bool invaders = m_session->secretMode();
 
-    m_local->setTitle(QStringLiteral("%1  #%2").arg(m_session->playerName(me)).arg(me + 1));
+    m_local->setTitle(invaders ? QStringLiteral("DEFENDER  %1").arg(m_session->playerName(me))
+                               : QStringLiteral("%1  #%2")
+                                     .arg(m_session->playerName(me))
+                                     .arg(me + 1));
     m_local->setField(eng->field());
     if (eng->hasPiece()) {
         const Piece p = eng->current();
@@ -134,8 +139,10 @@ void GameView::refresh()
     }
     m_next->setField(nextField);
     m_next->setPiece(nullptr);
+    m_next->setVisible(!invaders);
 
     m_inv->setInventory(eng->inventory());
+    m_inv->setVisible(!invaders);
     m_start->setVisible(m_session->canStart());
     m_channels->setVisible(m_session->hasChannels());
     m_status->setText(m_session->statusText());
@@ -144,7 +151,10 @@ void GameView::refresh()
         auto *w = m_opponents[static_cast<size_t>(i)];
         const bool used = m_session->slotOccupied(i);
         w->setVisible(true);
-        w->setTitle(used ? QStringLiteral("%1  #%2").arg(m_session->playerName(i)).arg(i + 1)
+        w->setTitle(used ? (invaders ? QStringLiteral("DEFENDER %1").arg(i + 1)
+                                    : QStringLiteral("%1  #%2")
+                                          .arg(m_session->playerName(i))
+                                          .arg(i + 1))
                          : QStringLiteral("Empty  #%1").arg(i + 1));
         w->setField(used ? m_session->opponentField(i) : Field{});
         w->setPiece(nullptr);
@@ -256,6 +266,17 @@ void GameView::keyPressEvent(QKeyEvent *event)
 
     if (event->isAutoRepeat() && event->key() == Qt::Key_Space)
         return;
+
+    if (!m_session->playing() && !event->isAutoRepeat() && !event->text().isEmpty()) {
+        m_secretKeys += event->text().toUpper();
+        if (m_secretKeys.size() > 8)
+            m_secretKeys = m_secretKeys.right(8);
+        if (m_secretKeys == QLatin1String("INVADERS") && m_session->activateSecretMode()) {
+            m_secretKeys.clear();
+            refresh();
+            return;
+        }
+    }
 
     if (event->key() >= Qt::Key_1 && event->key() <= Qt::Key_6) {
         m_session->useSpecial(event->key() - Qt::Key_1);

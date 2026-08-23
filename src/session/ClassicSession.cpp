@@ -515,6 +515,10 @@ void ClassicSession::noteTopic(const QString &text)
 
 void ClassicSession::broadcastField()
 {
+    // The same hidden-game trick can cross an unmodified TetriNET Classic server by treating
+    // its regular `f` field packets as a tiny 12x22 framebuffer. Classic relays are normally
+    // paced much slower (this client sends every 250 ms), so that experiment belongs behind a
+    // separate opt-in transport rather than changing the native real-time MVP.
     const QString data = m_engine.snapshot(false).encode();
     if (data == m_lastSent)
         return;
