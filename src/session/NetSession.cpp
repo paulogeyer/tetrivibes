@@ -1,0 +1,246 @@
+#include "NetSession.h"
+
+#include <algorithm>
+
+namespace tnet {
+
+NetSession::NetSession(bool host, const QString &hostName, quint16 port, const QString &nick,
+                       const QString &serverName, int maxPlayers, QObject *parent)
+    : GameSession(parent)
+    , m_host(host)
+    , m_nick(nick.isEmpty() ? QStringLiteral("Player") : nick)
+    , m_serverName(serverName)
+    , m_maxPlayers(maxPlayers)
+{
+    m_pendingHost = hostName;
+    m_pendingPort = port;
+    connect(&m_engine, &Engine::updated, this, [this]() {
+        emit updated();
+        if (m_playing)
+            broadcastField();
+    });
+    connect(&m_engine, &Engine::inventoryChanged, this, &GameSession::updated);
+    connect(&m_engine, &Engine::died, this, [this]() {
+        if (m_playing) {
+            m_alive[static_cast<size_t>(std::max(0, m_client.localSlot()))] = false;
+            m_client.sendLose();
+        }
+        emit updated();
+    });
+
+    connect(&m_client, &Client::welcomed, this, [this](int) {
+        emit chatReceived(QStringLiteral("* Joined server"));
+        emit statusChanged();
+        emit updated();
+    });
+    connect(&m_client, &Client::disconnected, this, [this]() {
+        emit chatReceived(QStringLiteral("* Disconnected"));
+        emit statusChanged();
+    });
+    connect(&m_client, &Client::errorText, this, [this](const QString &e) {
+        emit chatReceived(QStringLiteral("* Error: %1").arg(e));
+    });
+    connect(&m_client, &Client::chatReceived, this, [this](int slot, const QString &text) {
+        emit chatReceived(QStringLiteral("%1: %2").arg(playerName(slot), text));
+    });
+    connect(&m_client, &Client::playerUpdated, this, [this](int, const QString &) {
+        emit updated();
+        emit statusChanged();
+    });
+    connect(&m_client, &Client::playerLeft, this, [this](int slot) {
+        m_alive[static_cast<size_t>(slot)] = false;
+        emit chatReceived(QStringLiteral("* %1 left").arg(QStringLiteral("P%1").arg(slot + 1)));
+        emit updated();
+    });
+    connect(&m_client, &Client::gameStarted, this, &NetSession::onGameStarted);
+    connect(&m_client, &Client::fieldReceived, this, [this](int slot, const QString &data) {
+        if (slot >= 0 && slot < kMaxPlayers)
+            m_fields[static_cast<size_t>(slot)] = Field::decode(data);
+        emit updated();
+    });
+    connect(&m_client, &Client::specialReceived, this, &NetSession::onSpecial);
+    connect(&m_client, &Client::playerLost, this, [this](int slot) {
+        if (slot >= 0 && slot < kMaxPlayers)
+            m_alive[static_cast<size_t>(slot)] = false;
+        emit chatReceived(QStringLiteral("* %1 topped out").arg(playerName(slot)));
+        emit updated();
+    });
+    connect(&m_client, &Client::playerWon, this, [this](int slot) {
+        m_playing = false;
+        emit gameEnded(QStringLiteral("%1 wins!").arg(playerName(slot)));
+        emit statusChanged();
+    });
+
+}
+
+void NetSession::begin()
+{
+    if (m_host) {
+        m_server = new Server(this);
+        m_server->setServerName(m_serverName.isEmpty() ? m_nick : m_serverName);
+        m_server->setMaxPlayers(m_maxPlayers);
+        connect(m_server, &Server::logLine, this, &GameSession::chatReceived);
+        if (!m_server->listen(m_pendingPort))
+            emit chatReceived(QStringLiteral("* Failed to start server"));
+        else
+            emit chatReceived(QStringLiteral("* Hosting on port %1").arg(m_server->port()));
+        m_client.connectTo(QStringLiteral("127.0.0.1"),
+                           m_server && m_server->isListening() ? m_server->port() : m_pendingPort, m_nick);
+    } else {
+        emit chatReceived(QStringLiteral("* Connecting to %1")
+                              .arg(m_serverName.isEmpty() ? m_pendingHost : m_serverName));
+        m_client.connectTo(m_pendingHost, m_pendingPort, m_nick);
+    }
+}
+
+NetSession::~NetSession()
+{
+    m_client.disconnectFromHost();
+}
+
+bool NetSession::serverOk() const
+{
+    return !m_host || (m_server && m_server->isListening());
+}
+
+Engine *NetSession::localEngine()
+{
+    return &m_engine;
+}
+
+int NetSession::localSlot() const
+{
+    return m_client.localSlot() < 0 ? 0 : m_client.localSlot();
+}
+
+Field NetSession::opponentField(int slot) const
+{
+    if (slot == localSlot())
+        return m_engine.snapshot(true);
+    if (slot < 0 || slot >= kMaxPlayers)
+        return {};
+    return m_fields[static_cast<size_t>(slot)];
+}
+
+QString NetSession::playerName(int slot) const
+{
+    const QString n = m_client.playerName(slot);
+    if (!n.isEmpty())
+        return n;
+    if (slotOccupied(slot))
+        return QStringLiteral("P%1").arg(slot + 1);
+    return {};
+}
+
+bool NetSession::slotOccupied(int slot) const
+{
+    return m_client.slotUsed(slot);
+}
+
+bool NetSession::slotAlive(int slot) const
+{
+    return slotOccupied(slot) && m_alive[static_cast<size_t>(slot)];
+}
+
+bool NetSession::canStart() const
+{
+    return m_host && !m_playing && m_client.isConnected();
+}
+
+QString NetSession::statusText() const
+{
+    if (!m_client.isConnected())
+        return QStringLiteral("Connecting to %1…")
+            .arg(m_serverName.isEmpty() ? m_pendingHost : m_serverName);
+    if (!m_playing)
+        return m_host ? QStringLiteral("Host lobby — press Start when ready")
+                      : QStringLiteral("Waiting for host to start");
+    return QStringLiteral("L%1  %2 pts  %3 lines")
+        .arg(m_engine.level())
+        .arg(m_engine.score())
+        .arg(m_engine.lines());
+}
+
+void NetSession::startGame()
+{
+    if (m_host)
+        m_client.sendStart();
+}
+
+void NetSession::onGameStarted(int seed)
+{
+    m_playing = true;
+    m_alive.fill(false);
+    for (int i = 0; i < kMaxPlayers; ++i) {
+        m_fields[static_cast<size_t>(i)] = Field{};
+        if (m_client.slotUsed(i))
+            m_alive[static_cast<size_t>(i)] = true;
+    }
+    m_engine.reset(static_cast<uint32_t>(seed) + static_cast<uint32_t>(localSlot()) * 7919u);
+    m_lastSent.clear();
+    emit chatReceived(QStringLiteral("* Game started"));
+    emit statusChanged();
+    emit updated();
+}
+
+void NetSession::useSpecial(int targetSlot)
+{
+    if (!m_playing || !m_engine.alive() || m_engine.inventory().isEmpty())
+        return;
+    if (!slotOccupied(targetSlot))
+        return;
+    const Special s = m_engine.takeSpecial();
+    m_client.sendSpecial(targetSlot, s);
+}
+
+void NetSession::onSpecial(int from, int target, Special special)
+{
+    emit chatReceived(QStringLiteral("* %1 used %2 on %3")
+                          .arg(playerName(from), specialName(special), playerName(target)));
+
+    if (special == Special::SwitchField) {
+        if (from == localSlot() && target == localSlot())
+            return;
+        if (target == localSlot() || from == localSlot()) {
+            const int other = (from == localSlot()) ? target : from;
+            Field mine = m_engine.field();
+            Field theirs = m_fields[static_cast<size_t>(other)];
+            m_engine.setField(theirs);
+            m_fields[static_cast<size_t>(other)] = mine;
+            broadcastField();
+        }
+        return;
+    }
+
+    if (target == localSlot())
+        m_engine.applySpecial(special);
+}
+
+void NetSession::sendChat(const QString &text)
+{
+    m_client.sendChat(text);
+}
+
+void NetSession::broadcastField()
+{
+    const QString data = m_engine.snapshot(true).encode();
+    if (data == m_lastSent)
+        return;
+    m_lastSent = data;
+    m_client.sendField(data);
+}
+
+void NetSession::tick(int ms)
+{
+    if (!m_playing || !m_engine.alive())
+        return;
+    m_engine.tick(ms);
+    m_fieldAcc += ms;
+    if (m_fieldAcc >= 200) {
+        m_fieldAcc = 0;
+        broadcastField();
+    }
+    emit statusChanged();
+}
+
+} // namespace tnet
