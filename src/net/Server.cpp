@@ -99,6 +99,30 @@ int Server::playerCount() const
     return n;
 }
 
+int Server::humanCount() const
+{
+    int n = 0;
+    for (const auto &c : m_clients) {
+        if (c.used && !c.bot)
+            ++n;
+    }
+    return n;
+}
+
+void Server::returnToLobby()
+{
+    m_playing = false;
+    m_gameTimer.stop();
+    m_botAcc = 0;
+    for (auto &c : m_clients) {
+        c.alive = false;
+        c.engine.reset();
+        c.botAi.reset();
+        c.inputAction.clear();
+        c.inputTarget = -1;
+    }
+}
+
 void Server::startGame()
 {
     if (m_playing || playerCount() < 1)
@@ -226,7 +250,7 @@ void Server::onPendingDisconnected()
 
 bool Server::promotePending(QTcpSocket *sock, const QString &nick)
 {
-    if (!sock || m_playing || playerCount() >= m_maxPlayers)
+    if (!sock || playerCount() >= m_maxPlayers)
         return false;
     const int slot = allocateSlot();
     if (slot < 0)
@@ -253,6 +277,18 @@ bool Server::promotePending(QTcpSocket *sock, const QString &nick)
     broadcast(joined, slot);
     emit playerListChanged();
     emit logLine(QStringLiteral("%1 joined slot %2").arg(c.name).arg(slot + 1));
+    if (m_playing) {
+        c.alive = true;
+        c.engine = std::make_unique<Engine>();
+        c.engine->reset(QRandomGenerator::global()->generate());
+        Message start;
+        start.type = Message::Start;
+        sendTo(slot, start);
+        for (int i = 0; i < kMaxPlayers; ++i) {
+            if (m_clients[static_cast<size_t>(i)].used)
+                broadcastState(i);
+        }
+    }
     return true;
 }
 
@@ -329,7 +365,9 @@ void Server::onDisconnected()
     broadcast(left);
     emit playerListChanged();
     emit logLine(QStringLiteral("Slot %1 left").arg(slot + 1));
-    if (m_playing)
+    if (humanCount() == 0)
+        returnToLobby();
+    else if (m_playing)
         checkWin();
     sock->deleteLater();
 }

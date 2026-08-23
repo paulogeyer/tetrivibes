@@ -2,6 +2,7 @@
 
 #include "GameView.h"
 #include "LobbyWidget.h"
+#include "net/Server.h"
 #include "session/ClassicSession.h"
 #include "session/LocalSession.h"
 #include "session/NetSession.h"
@@ -54,6 +55,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_lobby, &LobbyWidget::hostClicked, this, &MainWindow::hostGame);
     connect(m_lobby, &LobbyWidget::joinClicked, this, &MainWindow::joinGame);
     connect(m_lobby, &LobbyWidget::practiceClicked, this, &MainWindow::practiceGame);
+    connect(m_lobby, &LobbyWidget::shutdownClicked, this, &MainWindow::shutdownHostedServer);
     connect(m_game, &GameView::leaveRequested, this, &MainWindow::leaveGame);
 
     m_timer = startTimer(16);
@@ -65,12 +67,18 @@ MainWindow::~MainWindow()
     m_game->setSession(nullptr);
     delete m_session;
     m_session = nullptr;
+    if (m_hostedServer) {
+        m_hostedServer->stop();
+        delete m_hostedServer;
+        m_hostedServer = nullptr;
+    }
 }
 
 void MainWindow::attachSession(GameSession *session)
 {
     if (m_session) {
-        m_session->deleteLater();
+        m_game->setSession(nullptr);
+        delete m_session;
         m_session = nullptr;
     }
     m_session = session;
@@ -96,9 +104,27 @@ void MainWindow::attachSession(GameSession *session)
 
 void MainWindow::hostGame()
 {
-    attachSession(new NetSession(true, m_lobby->host(), m_lobby->port(), m_lobby->nickname(),
-                                m_lobby->serverName(), m_lobby->maxPlayers(), m_lobby->botCount(),
-                                this));
+    if (!m_hostedServer || !m_hostedServer->isListening()) {
+        delete m_hostedServer;
+        m_hostedServer = new Server(this);
+        m_hostedServer->setServerName(m_lobby->serverName().isEmpty() ? m_lobby->nickname()
+                                                                     : m_lobby->serverName());
+        m_hostedServer->setMaxPlayers(m_lobby->maxPlayers());
+        m_hostedServer->setBotCount(m_lobby->botCount());
+        if (!m_hostedServer->listen(m_lobby->port())) {
+            delete m_hostedServer;
+            m_hostedServer = nullptr;
+            syncHostedServerUi();
+            QMessageBox::warning(this, QStringLiteral("Tetrinet"),
+                                 QStringLiteral("Could not start the server."));
+            return;
+        }
+    }
+    auto *session = new NetSession(true, QStringLiteral("127.0.0.1"), m_hostedServer->port(),
+                                   m_lobby->nickname(), m_hostedServer->serverName(),
+                                   m_hostedServer->maxPlayers(), 0, this);
+    session->attachServer(m_hostedServer);
+    attachSession(session);
 }
 
 void MainWindow::joinGame()
@@ -127,12 +153,34 @@ void MainWindow::practiceGame()
 void MainWindow::leaveGame()
 {
     if (m_session) {
-        m_session->deleteLater();
+        m_game->setSession(nullptr);
+        delete m_session;
         m_session = nullptr;
     }
-    m_game->setSession(nullptr);
+    syncHostedServerUi();
     m_stack->setCurrentWidget(m_lobby);
     m_lobby->showMain();
+}
+
+void MainWindow::shutdownHostedServer()
+{
+    if (m_session && m_session->isHost())
+        leaveGame();
+    if (m_hostedServer) {
+        m_hostedServer->stop();
+        delete m_hostedServer;
+        m_hostedServer = nullptr;
+    }
+    syncHostedServerUi();
+}
+
+void MainWindow::syncHostedServerUi()
+{
+    if (m_hostedServer && m_hostedServer->isListening()) {
+        m_lobby->setHostedServer(true, m_hostedServer->port(), m_hostedServer->serverName());
+    } else {
+        m_lobby->setHostedServer(false);
+    }
 }
 
 void MainWindow::timerEvent(QTimerEvent *event)

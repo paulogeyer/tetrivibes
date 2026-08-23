@@ -86,20 +86,29 @@ NetSession::NetSession(bool host, const QString &hostName, quint16 port, const Q
 
 }
 
+void NetSession::attachServer(Server *server)
+{
+    m_server = server;
+    m_ownsServer = false;
+}
+
 void NetSession::begin()
 {
     if (m_host) {
-        m_server = new Server(this);
-        m_server->setServerName(m_serverName.isEmpty() ? m_nick : m_serverName);
-        m_server->setMaxPlayers(m_maxPlayers);
-        m_server->setBotCount(m_botCount);
+        if (!m_server) {
+            m_server = new Server(this);
+            m_ownsServer = true;
+            m_server->setServerName(m_serverName.isEmpty() ? m_nick : m_serverName);
+            m_server->setMaxPlayers(m_maxPlayers);
+            m_server->setBotCount(m_botCount);
+            if (!m_server->listen(m_pendingPort))
+                emit chatReceived(QStringLiteral("* Failed to start server"));
+        }
         connect(m_server, &Server::logLine, this, &GameSession::chatReceived);
-        if (!m_server->listen(m_pendingPort))
-            emit chatReceived(QStringLiteral("* Failed to start server"));
-        else
+        if (m_server->isListening())
             emit chatReceived(QStringLiteral("* Hosting on port %1").arg(m_server->port()));
         m_client.connectTo(QStringLiteral("127.0.0.1"),
-                           m_server && m_server->isListening() ? m_server->port() : m_pendingPort, m_nick);
+                           m_server->isListening() ? m_server->port() : m_pendingPort, m_nick);
     } else {
         emit chatReceived(QStringLiteral("* Connecting to %1")
                               .arg(m_serverName.isEmpty() ? m_pendingHost : m_serverName));
@@ -110,10 +119,10 @@ void NetSession::begin()
 NetSession::~NetSession()
 {
     QObject::disconnect(&m_client, nullptr, this, nullptr);
-    if (m_server) {
+    if (m_server)
         QObject::disconnect(m_server, nullptr, this, nullptr);
+    if (m_ownsServer && m_server)
         m_server->stop();
-    }
     m_client.disconnectFromHost();
 }
 

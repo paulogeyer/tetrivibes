@@ -14,6 +14,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTableWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace tnet {
@@ -52,6 +53,8 @@ GameView::GameView(QWidget *parent)
     connect(m_input, &QLineEdit::returnPressed, this, &GameView::sendChat);
 
     m_start = new QPushButton(QStringLiteral("Start Game"));
+    m_start->setAutoDefault(false);
+    m_start->setDefault(false);
     m_channels = new QPushButton(QStringLiteral("Channels"));
     auto *leave = new QPushButton(QStringLiteral("Leave"));
     connect(m_start, &QPushButton::clicked, this, &GameView::startGame);
@@ -84,11 +87,13 @@ GameView::GameView(QWidget *parent)
 void GameView::setSession(GameSession *session)
 {
     m_session = session;
+    m_startArmed = false;
     m_chat->clear();
     if (m_channelDlg)
         m_channelDlg->hide();
     refresh();
     setFocus();
+    QTimer::singleShot(300, this, [this]() { m_startArmed = true; });
 }
 
 void GameView::appendChat(const QString &line)
@@ -226,8 +231,9 @@ void GameView::fillChannelTable(const QVector<ChannelInfo> &channels)
 
 void GameView::startGame()
 {
-    if (m_session)
-        m_session->startGame();
+    if (!m_startArmed || !m_session)
+        return;
+    m_session->startGame();
     setFocus();
 }
 

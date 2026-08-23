@@ -39,6 +39,7 @@ public:
     void hardDrop() override;
 
     bool serverOk() const;
+    void attachServer(Server *server);
     void begin();
 
 private:
@@ -55,6 +56,7 @@ private:
     int m_maxPlayers = kMaxPlayers;
     int m_botCount = 0;
     Server *m_server = nullptr;
+    bool m_ownsServer = false;
     Client m_client;
     Engine m_engine;
     std::array<Field, kMaxPlayers> m_fields{};

@@ -122,7 +122,7 @@ LobbyWidget::LobbyWidget(QWidget *parent)
     m_maxPlayers->setRange(2, 6);
     m_maxPlayers->setValue(6);
     m_bots = new QSpinBox;
-    m_bots->setRange(1, 5);
+    m_bots->setRange(0, 5);
     m_bots->setValue(2);
     m_protocol = new QComboBox;
     m_protocol->addItem(QStringLiteral("Auto"), static_cast<int>(JoinProtocol::Auto));
@@ -194,9 +194,9 @@ LobbyWidget::LobbyWidget(QWidget *parent)
     auto *hostTitle = new QLabel(QStringLiteral("HOST GAME"));
     hostTitle->setObjectName(QStringLiteral("title"));
     hostTitle->setAlignment(Qt::AlignCenter);
-    auto *hostSub = new QLabel(QStringLiteral("Start a local server or practice vs bots"));
-    hostSub->setAlignment(Qt::AlignCenter);
-    hostSub->setObjectName(QStringLiteral("subtitle"));
+    m_hostStatus = new QLabel(QStringLiteral("Start a local server or practice vs bots"));
+    m_hostStatus->setAlignment(Qt::AlignCenter);
+    m_hostStatus->setObjectName(QStringLiteral("subtitle"));
 
     auto *hostForm = new QFormLayout;
     hostForm->addRow(QStringLiteral("Server name"), m_serverName);
@@ -205,26 +205,31 @@ LobbyWidget::LobbyWidget(QWidget *parent)
     hostForm->addRow(QStringLiteral("Protocol"), m_protocol);
     hostForm->addRow(QStringLiteral("Practice bots"), m_bots);
 
-    auto *startHost = new QPushButton(QStringLiteral("Start Server"));
+    m_hostStart = new QPushButton(QStringLiteral("Start Server"));
     auto *pracBtn = new QPushButton(QStringLiteral("Practice vs Bots"));
     auto *backBtn = new QPushButton(QStringLiteral("Back"));
-    startHost->setObjectName(QStringLiteral("primary"));
+    m_shutdown = new QPushButton(QStringLiteral("Shutdown Server"));
+    m_hostStart->setObjectName(QStringLiteral("primary"));
     pracBtn->setObjectName(QStringLiteral("secondary"));
-    connect(startHost, &QPushButton::clicked, this, &LobbyWidget::hostClicked);
+    m_shutdown->setObjectName(QStringLiteral("primary"));
+    m_shutdown->hide();
+    connect(m_hostStart, &QPushButton::clicked, this, &LobbyWidget::hostClicked);
     connect(pracBtn, &QPushButton::clicked, this, &LobbyWidget::practiceClicked);
     connect(backBtn, &QPushButton::clicked, this, &LobbyWidget::showMain);
+    connect(m_shutdown, &QPushButton::clicked, this, &LobbyWidget::shutdownClicked);
 
     auto *hostBtns = new QHBoxLayout;
     hostBtns->addWidget(backBtn);
     hostBtns->addStretch();
     hostBtns->addWidget(pracBtn);
-    hostBtns->addWidget(startHost);
+    hostBtns->addWidget(m_shutdown);
+    hostBtns->addWidget(m_hostStart);
 
     auto *hostPage = new QWidget;
     auto *hostBox = new QVBoxLayout(hostPage);
     hostBox->addStretch();
     hostBox->addWidget(hostTitle);
-    hostBox->addWidget(hostSub);
+    hostBox->addWidget(m_hostStatus);
     hostBox->addSpacing(16);
     hostBox->addLayout(hostForm);
     hostBox->addSpacing(16);
@@ -280,6 +285,21 @@ void LobbyWidget::showMain()
 void LobbyWidget::showHost()
 {
     m_pages->setCurrentIndex(1);
+}
+
+void LobbyWidget::setHostedServer(bool running, quint16 port, const QString &name)
+{
+    m_shutdown->setVisible(running);
+    m_hostStart->setText(running ? QStringLiteral("Return to Game") : QStringLiteral("Start Server"));
+    m_serverName->setEnabled(!running);
+    m_port->setEnabled(!running);
+    m_maxPlayers->setEnabled(!running);
+    m_bots->setEnabled(!running);
+    if (running) {
+        m_hostStatus->setText(QStringLiteral("Server running on port %1 — %2").arg(port).arg(name));
+    } else {
+        m_hostStatus->setText(QStringLiteral("Start a local server or practice vs bots"));
+    }
 }
 
 void LobbyWidget::buildDefaults()

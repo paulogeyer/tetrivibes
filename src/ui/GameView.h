@@ -54,6 +54,7 @@ private:
     QLineEdit *m_input = nullptr;
     QPushButton *m_start = nullptr;
     QPushButton *m_channels = nullptr;
+    bool m_startArmed = false;
     QDialog *m_channelDlg = nullptr;
     QTableWidget *m_channelTable = nullptr;
 };

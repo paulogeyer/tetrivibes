@@ -8,8 +8,10 @@
 #include <QWidget>
 
 class QComboBox;
+class QLabel;
 class QLineEdit;
 class QNetworkReply;
+class QPushButton;
 class QSpinBox;
 class QStackedWidget;
 class QTableWidget;
@@ -35,11 +37,13 @@ public:
     JoinProtocol protocol() const;
     void refreshServers();
     void showMain();
+    void setHostedServer(bool running, quint16 port = 0, const QString &name = QString());
 
 signals:
     void hostClicked();
     void joinClicked();
     void practiceClicked();
+    void shutdownClicked();
 
 protected:
     void showEvent(QShowEvent *event) override;
@@ -85,6 +89,9 @@ private:
     QSpinBox *m_bots = nullptr;
     QSpinBox *m_maxPlayers = nullptr;
     QComboBox *m_protocol = nullptr;
+    QLabel *m_hostStatus = nullptr;
+    QPushButton *m_hostStart = nullptr;
+    QPushButton *m_shutdown = nullptr;
     QStackedWidget *m_pages = nullptr;
     QTableWidget *m_table = nullptr;
     QVector<Entry> m_servers;

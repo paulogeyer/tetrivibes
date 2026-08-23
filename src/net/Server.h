@@ -34,6 +34,7 @@ public:
     void setBotCount(int botCount);
     QString serverName() const { return m_name; }
     int maxPlayers() const { return m_maxPlayers; }
+    bool playing() const { return m_playing; }
 
 signals:
     void logLine(const QString &text);
@@ -80,6 +81,8 @@ private:
     bool promotePending(QTcpSocket *socket, const QString &nick);
     void processClient(QTcpSocket *socket);
     void checkWin();
+    void returnToLobby();
+    int humanCount() const;
     int findSlot(QTcpSocket *socket) const;
     int findPending(QTcpSocket *socket) const;
     int allocateSlot() const;
