@@ -18,12 +18,17 @@ public:
     bool moveRight();
     bool fire();
     void autoplay();
+    void applyPowerup(Special special);
+    void pushPowerup(Special special);
+    Special takePowerup();
+    void swapBattlefield(InvadersEngine &other);
 
     const Field &field() const { return m_field; }
     bool alive() const { return m_alive; }
     int wave() const { return m_wave; }
     int score() const { return m_score; }
     int lives() const { return m_lives; }
+    const QVector<Special> &inventory() const { return m_inventory; }
 
 private:
     struct Actor {
@@ -36,12 +41,14 @@ private:
     void stepProjectiles();
     void enemyFire();
     void hitPlayer();
+    void maybeCollectPowerup();
     void render();
 
     Field m_field;
     std::vector<Actor> m_invaders;
     std::vector<Actor> m_shots;
     std::vector<Actor> m_enemyShots;
+    QVector<Special> m_inventory;
     std::mt19937 m_rng;
     bool m_alive = false;
     int m_shipX = kFieldWidth / 2;
@@ -53,6 +60,8 @@ private:
     int m_projectileAcc = 0;
     int m_enemyFireAcc = 0;
     int m_fireCooldown = 0;
+    int m_slowTimer = 0;
+    int m_rapidFireTimer = 0;
 };
 
 } // namespace tnet

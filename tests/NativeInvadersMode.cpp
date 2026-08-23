@@ -36,6 +36,9 @@ int main(int argc, char *argv[])
     assert(session->localEngine()->lines() == 3);
     assert(session->localEngine()->field().filledCount() >= 24);
 
+    // Number-key targeting travels through the existing INPUT special action once a drop is held.
+    // Inventory acquisition/effects are deterministic unit-tested in InvadersEngineTest.
+
     session->moveLeft();
     session->hardDrop();
     waitForEvents(app, 80);

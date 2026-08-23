@@ -142,7 +142,7 @@ void GameView::refresh()
     m_next->setVisible(!invaders);
 
     m_inv->setInventory(eng->inventory());
-    m_inv->setVisible(!invaders);
+    m_inv->setVisible(true);
     m_start->setVisible(m_session->canStart());
     m_channels->setVisible(m_session->hasChannels());
     m_status->setText(m_session->statusText());

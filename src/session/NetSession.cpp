@@ -247,8 +247,6 @@ void NetSession::onGameStarted(int seed)
 
 void NetSession::useSpecial(int targetSlot)
 {
-    if (m_invaders)
-        return;
     if (!m_playing || !m_engine.alive() || m_engine.inventory().isEmpty())
         return;
     if (!slotOccupied(targetSlot))

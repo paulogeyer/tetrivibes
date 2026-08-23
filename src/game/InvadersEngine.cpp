@@ -29,8 +29,11 @@ void InvadersEngine::reset(uint32_t seed)
     m_projectileAcc = 0;
     m_enemyFireAcc = 0;
     m_fireCooldown = 0;
+    m_slowTimer = 0;
+    m_rapidFireTimer = 0;
     m_shots.clear();
     m_enemyShots.clear();
+    m_inventory.clear();
     spawnWave();
     render();
 }
@@ -66,10 +69,11 @@ bool InvadersEngine::moveRight()
 
 bool InvadersEngine::fire()
 {
-    if (!m_alive || m_fireCooldown > 0 || m_shots.size() >= 3)
+    const size_t shotLimit = m_rapidFireTimer > 0 ? 6 : 3;
+    if (!m_alive || m_fireCooldown > 0 || m_shots.size() >= shotLimit)
         return false;
     m_shots.push_back({m_shipX, kShipRow - 1});
-    m_fireCooldown = 180;
+    m_fireCooldown = m_rapidFireTimer > 0 ? 70 : 180;
     render();
     return true;
 }
@@ -141,6 +145,7 @@ void InvadersEngine::stepProjectiles()
             m_invaders.erase(invader);
             shot = m_shots.erase(shot);
             m_score += 10 * m_wave;
+            maybeCollectPowerup();
         } else if (shot->y < 0) {
             shot = m_shots.erase(shot);
         } else {
@@ -175,16 +180,116 @@ void InvadersEngine::enemyFire()
     m_enemyShots.push_back({source.x, source.y + 1});
 }
 
+void InvadersEngine::pushPowerup(Special special)
+{
+    if (m_inventory.size() < kMaxInventory)
+        m_inventory.push_back(special);
+}
+
+Special InvadersEngine::takePowerup()
+{
+    if (m_inventory.isEmpty())
+        return Special::AddLine;
+    const Special special = m_inventory.front();
+    m_inventory.pop_front();
+    return special;
+}
+
+void InvadersEngine::maybeCollectPowerup()
+{
+    std::uniform_int_distribution<int> drop(0, 99);
+    if (drop(m_rng) >= 28 || m_inventory.size() >= kMaxInventory)
+        return;
+    std::uniform_int_distribution<int> type(0, static_cast<int>(Special::Zebra));
+    pushPowerup(static_cast<Special>(type(m_rng)));
+}
+
+void InvadersEngine::applyPowerup(Special special)
+{
+    if (!m_alive)
+        return;
+    switch (special) {
+    case Special::AddLine:
+        for (Actor &invader : m_invaders)
+            ++invader.y;
+        for (int column = 0; column < 5; ++column)
+            m_invaders.push_back({1 + column * 2, 1});
+        break;
+    case Special::ClearLine:
+        m_lives = std::min(5, m_lives + 1);
+        break;
+    case Special::ClearSpecial:
+        m_enemyShots.clear();
+        break;
+    case Special::RandomClear:
+        m_shots.clear();
+        break;
+    case Special::Bomb:
+        m_shots.clear();
+        for (int dx = -1; dx <= 1; ++dx)
+            m_enemyShots.push_back({std::clamp(m_shipX + dx, 0, kFieldWidth - 1),
+                                    kShipRow - 5});
+        break;
+    case Special::Quake:
+        for (Actor &invader : m_invaders)
+            invader.y += 2;
+        break;
+    case Special::Gravity:
+        m_slowTimer = 8000;
+        break;
+    case Special::SwitchField:
+        break; // The server swaps both players' battlefields atomically.
+    case Special::Nuke:
+        m_invaders.clear();
+        break;
+    case Special::LeftGravity:
+        m_shipX = 1;
+        break;
+    case Special::PieceChange:
+        m_rapidFireTimer = 8000;
+        m_fireCooldown = 0;
+        break;
+    case Special::Zebra:
+        for (int x = 0; x < kFieldWidth; x += 2)
+            m_enemyShots.push_back({x, kShipRow - 7});
+        break;
+    }
+    for (const Actor &invader : m_invaders) {
+        if (invader.y >= kShipRow) {
+            m_lives = 0;
+            m_alive = false;
+            break;
+        }
+    }
+    render();
+}
+
+void InvadersEngine::swapBattlefield(InvadersEngine &other)
+{
+    using std::swap;
+    swap(m_invaders, other.m_invaders);
+    swap(m_shots, other.m_shots);
+    swap(m_enemyShots, other.m_enemyShots);
+    swap(m_direction, other.m_direction);
+    swap(m_invaderAcc, other.m_invaderAcc);
+    swap(m_projectileAcc, other.m_projectileAcc);
+    swap(m_enemyFireAcc, other.m_enemyFireAcc);
+    render();
+    other.render();
+}
+
 void InvadersEngine::tick(int ms)
 {
     if (!m_alive)
         return;
     m_fireCooldown = std::max(0, m_fireCooldown - ms);
+    m_slowTimer = std::max(0, m_slowTimer - ms);
+    m_rapidFireTimer = std::max(0, m_rapidFireTimer - ms);
     m_invaderAcc += ms;
     m_projectileAcc += ms;
     m_enemyFireAcc += ms;
 
-    const int invaderDelay = std::max(120, 520 - m_wave * 25);
+    const int invaderDelay = std::max(120, 520 - m_wave * 25) + (m_slowTimer > 0 ? 280 : 0);
     while (m_invaderAcc >= invaderDelay) {
         m_invaderAcc -= invaderDelay;
         stepInvaders();

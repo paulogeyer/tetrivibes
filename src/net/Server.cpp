@@ -549,8 +549,27 @@ void Server::tickBots()
     for (int i = 0; i < kMaxPlayers; ++i) {
         auto &c = m_clients[static_cast<size_t>(i)];
         if (m_invadersMode) {
-            if (c.bot && c.alive && c.invaders)
+            if (c.bot && c.alive && c.invaders) {
                 c.invaders->autoplay();
+                if (!c.invaders->inventory().isEmpty()
+                    && QRandomGenerator::global()->bounded(100) < 18) {
+                    const Special special = c.invaders->inventory().front();
+                    const bool helpful = special == Special::ClearLine
+                        || special == Special::ClearSpecial || special == Special::Gravity
+                        || special == Special::Nuke;
+                    int target = i;
+                    if (!helpful) {
+                        for (int candidate = 0; candidate < kMaxPlayers; ++candidate) {
+                            if (candidate != i
+                                && m_clients[static_cast<size_t>(candidate)].alive) {
+                                target = candidate;
+                                break;
+                            }
+                        }
+                    }
+                    applySpecial(i, target);
+                }
+            }
             continue;
         }
         if (!c.bot || !c.alive || !c.botAi || !c.engine)
@@ -609,6 +628,9 @@ void Server::applyInput(int slot, const QString &action, int target)
             c.invaders->moveRight();
         else if (action == QLatin1String("drop") || action == QLatin1String("down"))
             c.invaders->fire();
+        else if (action == QLatin1String("special") && target >= 0 && target < kMaxPlayers
+                 && m_clients[static_cast<size_t>(target)].alive)
+            applySpecial(slot, target);
         return;
     }
     if (!c.engine)
@@ -643,7 +665,10 @@ void Server::broadcastState(int slot)
         state.level = c.invaders->wave();
         state.score = c.invaders->score();
         state.lines = c.invaders->lives();
-        state.text = QStringLiteral("-");
+        for (Special special : c.invaders->inventory())
+            state.text += QChar(specialLetter(special));
+        if (state.text.isEmpty())
+            state.text = QStringLiteral("-");
         state.data = c.invaders->field().encode();
         state.piece = encodeLivePieces(false, Piece{}, Piece{});
         broadcast(state);
@@ -665,6 +690,26 @@ void Server::applySpecial(int from, int target)
 {
     auto &source = m_clients[static_cast<size_t>(from)];
     auto &destination = m_clients[static_cast<size_t>(target)];
+    if (m_invadersMode) {
+        if (!source.invaders || !destination.invaders || source.invaders->inventory().isEmpty())
+            return;
+        const Special special = source.invaders->takePowerup();
+        if (special == Special::SwitchField && from != target)
+            source.invaders->swapBattlefield(*destination.invaders);
+        else
+            destination.invaders->applyPowerup(special);
+
+        Message event;
+        event.type = Message::Special;
+        event.slot = from;
+        event.target = target;
+        event.text = QString(QChar(specialLetter(special)));
+        broadcast(event);
+        broadcastState(from);
+        if (target != from)
+            broadcastState(target);
+        return;
+    }
     if (!source.engine || !destination.engine || source.engine->inventory().isEmpty())
         return;
     const Special special = source.engine->takeSpecial();
