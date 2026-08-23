@@ -6,6 +6,14 @@ The last player who can still place pieces wins.
 
 This client was vibecoded with [OpenCode](https://opencode.ai) and Grok 4.6 — the best TetriNET client I ever played.
 
+## Screenshots
+
+![Main screen](screenshots/main%20screen.jpg)
+
+![Host game](screenshots/host%20game.jpg)
+
+![In-game](screenshots/game.jpg)
+
 ## Features
 
 ### Classic TetriNET
