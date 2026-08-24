@@ -81,6 +81,25 @@ cmake --build build -j
 
 Run the test suite with `./test.sh`.
 
+### Windows binary (cross-compile from Linux)
+
+Install MinGW and a Windows MinGW build of Qt 5 (for example with [aqtinstall](https://github.com/miurahr/aqtinstall) into `~/qt/5.15.2/mingw81_64`):
+
+```bash
+sudo apt install g++-mingw-w64-x86-64 cmake
+./build.sh --windows
+```
+
+The packaged exe and Qt DLLs are written to `build-win/dist/tetrivibes/`. Copy that folder to a Windows machine and run `tetrivibes.exe`.
+
+If Qt is not in the default path:
+
+```bash
+QT_MINGW=/path/to/qt5-mingw ./build.sh --windows
+```
+
+`QT_MINGW` must contain `lib/cmake/Qt5`. Linux `qtbase5-dev` cannot be used for this build.
+
 ## Play
 
 - **Join Server** — pick a listed, LAN, or custom host

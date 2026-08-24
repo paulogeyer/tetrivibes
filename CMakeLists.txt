@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 find_package(Qt5 REQUIRED COMPONENTS Widgets Network)
+if(CMAKE_CROSSCOMPILING AND CMAKE_HOST_UNIX)
+    set_property(TARGET Qt5::moc PROPERTY IMPORTED_LOCATION /usr/bin/moc)
+endif()
 
 add_executable(tetrivibes
     src/main.cpp
