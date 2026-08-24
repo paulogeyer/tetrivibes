@@ -8,11 +8,11 @@ This client was vibecoded with [OpenCode](https://opencode.ai) and Grok 4.6 — 
 
 ## Screenshots
 
-![Main screen](screenshots/main%20screen.jpg)
+![Main screen](assets/screenshots/main%20screen.jpg)
 
-![Host game](screenshots/host%20game.jpg)
+![Host game](assets/screenshots/host%20game.jpg)
 
-![In-game](screenshots/game.jpg)
+![In-game](assets/screenshots/game.jpg)
 
 ## Features
 
