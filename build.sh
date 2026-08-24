@@ -53,4 +53,14 @@ for f in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll libEGL.dll libGL
         cp "$qt/bin/$f" "$out/"
     fi
 done
+ssl="${OPENSSL_MINGW:-$HOME/qt/openssl-win64}"
+for f in libssl-1_1-x64.dll libcrypto-1_1-x64.dll; do
+    if [ -f "$ssl/bin/$f" ]; then
+        cp "$ssl/bin/$f" "$out/"
+    elif [ -f "$qt/bin/$f" ]; then
+        cp "$qt/bin/$f" "$out/"
+    else
+        echo "missing $f (set OPENSSL_MINGW); HTTPS server list will fail" >&2
+    fi
+done
 echo "Windows build: $out/tetrivibes.exe"
