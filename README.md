@@ -1,10 +1,19 @@
 # Tetrivibes
 
+**Version 0.9**
+
 Tetrivibes is a C++17 / Qt 5 client for multiplayer tetromino combat in the TetriNET style. It can join classic public servers and host its own matches on a native protocol.
 
 The last player who can still place pieces wins.
 
 This client was vibecoded with [OpenCode](https://opencode.ai) and Grok 4.6 — the best TetriNET client I ever played.
+
+## Downloads
+
+Prebuilt binaries for **0.9** are on the [v0.9.0 release](https://github.com/paulogeyer/tetrivibes/releases/tag/v0.9.0):
+
+- [Linux x86_64](https://github.com/paulogeyer/tetrivibes/releases/download/v0.9.0/tetrivibes-0.9.0-linux-x86_64.tar.gz) — needs Qt 5 Widgets and Network on the system
+- [Windows x86_64](https://github.com/paulogeyer/tetrivibes/releases/download/v0.9.0/tetrivibes-0.9.0-windows-x86_64.zip) — includes Qt and OpenSSL DLLs; unzip and run `tetrivibes.exe`
 
 ## Screenshots
 
