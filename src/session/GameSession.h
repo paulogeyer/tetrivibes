@@ -34,10 +34,12 @@ public:
     virtual bool slotAlive(int slot) const = 0;
     virtual bool canStart() const { return false; }
     virtual bool isHost() const { return false; }
+    virtual bool secretMode() const { return false; }
     virtual bool playing() const = 0;
     virtual QString statusText() const = 0;
 
     virtual void startGame() {}
+    virtual bool activateSecretMode() { return false; }
     virtual void requestChannels() {}
     virtual bool hasChannels() const { return false; }
     virtual void useSpecial(int targetSlot) = 0;

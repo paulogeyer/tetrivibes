@@ -3,6 +3,7 @@
 #include "Protocol.h"
 #include "game/Bot.h"
 #include "game/Engine.h"
+#include "game/InvadersEngine.h"
 #include "game/Types.h"
 
 #include <QObject>
@@ -32,6 +33,7 @@ public:
     void setServerName(const QString &name);
     void setMaxPlayers(int maxPlayers);
     void setBotCount(int botCount);
+    bool setInvadersMode(bool enabled);
     QString serverName() const { return m_name; }
     int maxPlayers() const { return m_maxPlayers; }
     bool playing() const { return m_playing; }
@@ -49,6 +51,7 @@ private:
         bool alive = false;
         bool bot = false;
         std::unique_ptr<Engine> engine;
+        std::unique_ptr<InvadersEngine> invaders;
         std::unique_ptr<Bot> botAi;
         QString inputAction;
         int inputTarget = -1;
@@ -98,6 +101,8 @@ private:
     int m_botCount = 0;
     int m_botAcc = 0;
     bool m_playing = false;
+    bool m_invadersArmed = false;
+    bool m_invadersMode = false;
 };
 
 } // namespace tnet
